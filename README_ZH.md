@@ -229,8 +229,8 @@
 
  - [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP) — TCP socket 桥接、AST 错误诊断
  - [CAE-Agent-Hub](https://github.com/Cai-aa/CAE-Agent-Hub) — 高层工具与架构设计
- - [abaqus-mcp](https://github.com/username/abaqus-mcp) — 文件 IPC 传输
- - [Codex_MCP_Abaqus](https://github.com/username/Codex_MCP_Abaqus) — noGUI 模式与示例
+ - [abaqus-mcp](https://github.com/Cai-aa/abaqus-mcp) — 文件 IPC 传输
+ - [Codex_MCP_Abaqus](https://github.com/Zhangyoupeng1996/Codex_MCP_Abaqus) — noGUI 模式与示例
 
  ## 许可证
 
