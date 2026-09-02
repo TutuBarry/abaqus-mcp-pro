@@ -23,4 +23,4 @@ All notable changes to Abaqus MCP Pro will be documented in this file.
 - Viewport capture and multi-viewport support
 - Extended tool set: 50+ additional Abaqus operations (forces, moments, BCs, constraints, surfaces, contact, explicit steps, thermal steps)
 
-[1.0.0]: https://github.com/abaqus-mcp-pro/abaqus-mcp-pro/releases/tag/v1.0.0
+[1.0.0]: https://github.com/TutuBarry/abaqus-mcp-pro/releases/tag/v1.0.0

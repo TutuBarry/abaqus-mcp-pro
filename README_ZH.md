@@ -114,22 +114,32 @@
  连接成功后，AI 客户端即可使用全部 22 个工具：
 
  | 工具 | 说明 |
- |------|------|
- | `ping` | 检查桥接连接 + 会话状态（模型、视口、PID） |
- | `check_abaqus_connection` | 人类可读的连接状态 |
- | `run_python` | 在 Abaqus 内核中执行任意 Python 代码 |
- | `execute_script` | 兼容包装器，返回 stdout 文本 |
- | `set_workdir` | 修改 Abaqus 工作目录 |
- | `get_model_info` | 列出部件、材料、分析步、载荷、边界条件 |
- | `list_jobs` | 列出所有作业及其状态 |
- | `submit_job` | 提交作业并等待完成 |
- | `monitor_job_status` | 读取 .sta/.msg 文件获取进度与诊断 |
- | `inspect_odb` | 只读打开 ODB：帧裁剪、变量含分量信息 |
- | `get_odb_info` | inspect_odb 的兼容包装器 |
- | `capture_viewport` | 截取视口图像为 base64（PNG/TIFF/SVG） |
- | `get_viewport_image` | 兼容包装器，返回 data URI |
-
- ### noGUI 模式
+|------|------|
+| \ping\ | 检查桥接连接 + 会话状态（模型、视口、PID） |
+| \check_abaqus_connection\ | 人类可读的连接状态 |
+| un_python\ | 在 Abaqus 内核中执行任意 Python 代码 |
+| \xecute_script\ | 兼容包装器，返回 stdout 文本 |
+| \set_workdir\ | 修改 Abaqus 工作目录 |
+| \get_model_info\ | 列出部件、材料、分析步、载荷、边界条件 |
+| \list_jobs\ | 列出所有作业及其状态 |
+| \submit_job\ | 提交作业并等待完成 |
+| \monitor_job_status\ | 读取 .sta/.msg 文件获取进度与诊断 |
+| \diagnose_job\ | 求解器诊断：40+ 种错误模式自动检测 |
+| \inspect_odb\ | 只读打开 ODB：帧裁剪、变量含分量信息 |
+| \get_odb_info\ | inspect_odb 的兼容包装器 |
+| \xtract_kpis\ | ODB 透镜：提取 KPI（应力、位移等） |
+| \create_capsule\ | 保存实验状态快照 |
+| \list_capsules\ | 列出所有已保存的实验胶囊 |
+| \load_capsule\ | 加载已保存的实验胶囊 |
+| \delete_capsule\ | 删除已保存的实验胶囊 |
+| \compare_capsules\ | 对比两个胶囊（模型、KPI、文件差异） |
+| \check_physics_contracts\ | 验证物理合约（范围、阈值、百分比变化） |
+| \generate_report\ | 生成仿真报告（Markdown） |
+| \capture_viewport\ | 截取视口图像为 base64（PNG/TIFF/SVG） |
+| \get_viewport_image\ | 兼容包装器，返回 data URI |
+| \check_silent_failures\ | 静默失效检测（网格、约束、接触等） |
+| \check_model_integrity\ | 快速模型完整性检查 |
+| \converge_advice\ | 收敛问题自动修复建议 |### noGUI 模式
 
  在批处理模式下运行 Abaqus，使用 TCP 代理：
 

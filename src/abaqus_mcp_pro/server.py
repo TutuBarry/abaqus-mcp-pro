@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Abaqus MCP Pro Server v5.0.
+Abaqus MCP Pro Server v1.0.0.
 
 This stdio MCP server talks to a live Abaqus/CAE GUI bridge over a local TCP
 socket. The socket bridge gives lower-latency interaction than the older

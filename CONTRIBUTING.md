@@ -5,7 +5,7 @@ Thanks for your interest in contributing!
 ## Development Setup
 
 `ash
-git clone https://github.com/abaqus-mcp-pro/abaqus-mcp-pro.git
+git clone https://github.com/TutuBarry/abaqus-mcp-pro.git
 cd abaqus-mcp-pro
 pip install -e ".[dev]"
 `

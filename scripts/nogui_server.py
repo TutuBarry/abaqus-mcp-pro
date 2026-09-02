@@ -7,17 +7,22 @@ Usage:
 This script creates a TCP socket server inside the Abaqus kernel, allowing
 the MCP server to communicate with Abaqus without the GUI plugin.
 Useful for headless servers and CI/CD pipelines.
+
+Protocol: newline-delimited JSON (same as agent.py).
 """
 
 from __future__ import annotations
 
+import ast
+import contextlib
+import io
 import json
+import os
 import socket
 import sys
 import traceback
-from abaqus import *
+from abaqus import mdb, session
 from abaqusConstants import *
-import caeModules
 
 HOST = "127.0.0.1"
 PORT = 48152
@@ -34,7 +39,22 @@ print(f"[abaqus-mcp-pro nogui] Starting server on {HOST}:{PORT}")
 
 
 def handle_ping(params):
-    return {"status": "ok", "mode": "nogui", "models": list(mdb.models.keys()) if mdb.models else []}
+    return {
+        "python": sys.version,
+        "executable": sys.executable,
+        "mode": "nogui",
+        "models": list(mdb.models.keys()) if mdb.models else [],
+        "viewports": [],
+        "abaqus_version": getattr(sys, "abq_version", "unknown"),
+    }
+
+
+def _jsonable(value):
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except (TypeError, ValueError):
+        return {"repr": repr(value), "type": f"{type(value).__module__}.{type(value).__name__}"}
 
 
 def handle_run_python(params):
@@ -42,23 +62,34 @@ def handle_run_python(params):
     if not code:
         return {"ok": False, "error": "No code provided"}
     try:
-        exec_globals = {"mdb": mdb, "session": session, "__builtins__": __builtins__}
-        exec(code, exec_globals)
-        if "result" in exec_globals:
-            return exec_globals["result"]
-        return {"ok": True, "message": "Code executed successfully"}
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        namespace = {"mdb": mdb, "session": session}
+        try:
+            parsed = ast.parse(code, mode="eval")
+        except SyntaxError:
+            parsed = ast.parse(code, mode="exec")
+            compiled = compile(parsed, "<abaqus-mcp-pro-nogui>", "exec")
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exec(compiled, namespace, namespace)
+            returned = namespace.get("result")
+        else:
+            compiled = compile(parsed, "<abaqus-mcp-pro-nogui>", "eval")
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                returned = eval(compiled, namespace, namespace)
+        return {
+            "ok": True,
+            "return_value": _jsonable(returned),
+            "stdout": stdout.getvalue(),
+            "stderr": stderr.getvalue(),
+        }
     except Exception as e:
         tb = traceback.format_exc()
         return {"ok": False, "error": str(e), "error_type": type(e).__name__, "traceback": tb}
 
 
-def handle_get_model_info(params):
-    model_name = params.get("model_name", "Model-1")
-    if model_name not in mdb.models:
-        return {"ok": False, "error": f"Model '{model_name}' not found"}
-    model = mdb.models[model_name]
+def _get_model_info_dict(model):
     info = {
-        "name": model_name,
         "parts": list(model.parts.keys()),
         "materials": list(model.materials.keys()),
         "sections": list(model.sections.keys()),
@@ -70,26 +101,45 @@ def handle_get_model_info(params):
         "sets": list(model.rootAssembly.sets.keys()) if model.rootAssembly.sets else [],
         "surfaces": list(model.rootAssembly.surfaces.keys()) if model.rootAssembly.surfaces else [],
     }
-    return {"ok": True, **info}
+    return info
+
+
+def handle_get_model_info(params):
+    model_name = params.get("model_name", "Model-1")
+    if model_name not in mdb.models:
+        return {"ok": False, "error": f"Model '{model_name}' not found"}
+    model = mdb.models[model_name]
+    result = {"ok": True, "name": model_name}
+    result.update(_get_model_info_dict(model))
+    return result
 
 
 def handle_list_jobs(params):
-    import glob
-    workdir = params.get("workdir", ".")
     jobs = []
-    for f in glob.glob(os.path.join(workdir, "*.inp")):
-        jobs.append(os.path.basename(f).replace(".inp", ""))
-    return {"ok": True, "jobs": jobs, "count": len(jobs)}
+    for name in mdb.jobs.keys():
+        job = mdb.jobs[name]
+        item = {"name": name}
+        for attr in ("status", "type", "model", "description", "numCpus", "numDomains", "memory"):
+            try:
+                value = getattr(job, attr, None)
+                if value is not None:
+                    item[attr] = str(value)
+            except Exception:
+                pass
+        jobs.append(item)
+    return {"ok": True, "jobs": jobs, "count": len(jobs), "workdir": os.getcwd()}
 
 
 def handle_submit_job(params):
     job_name = params.get("job_name", "")
     if not job_name:
         return {"ok": False, "error": "No job_name provided"}
+    if job_name not in mdb.jobs:
+        return {"ok": False, "error": f"Job '{job_name}' not found"}
     try:
-        mdb.Job(name=job_name, model=mdb.models.keys()[0])
-        mdb.jobs[job_name].submit()
-        return {"ok": True, "job": job_name, "status": "submitted"}
+        mdb.jobs[job_name].submit(consistencyChecking=False)
+        mdb.jobs[job_name].waitForCompletion()
+        return {"ok": True, "job": job_name, "status": str(getattr(mdb.jobs[job_name], "status", "UNKNOWN"))}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 
@@ -107,11 +157,11 @@ def handle_monitor_job_status(params):
 
 def handle_capture_viewport(params):
     try:
-        import os
         filename = params.get("filename", "viewport.png")
-        session.viewports["Viewport: 1"].viewport.setValues(applyOdb=params.get("apply_odb", True))
+        vp_name = session.currentViewportName if hasattr(session, "currentViewportName") else "Viewport: 1"
+        vp = session.viewports[vp_name]
         session.printOptions.setValues(vpDecorations=ON, reduceColors=False)
-        session.printToFile(fileName=filename, format=PNG, canvasObjects=(session.viewports["Viewport: 1"],))
+        session.printToFile(fileName=filename, format=PNG, canvasObjects=(vp,))
         return {"ok": True, "file": filename, "message": "Viewport captured"}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
@@ -128,27 +178,26 @@ HANDLERS = {
 }
 
 
-def send_message(sock, msg):
-    data = json.dumps(msg, ensure_ascii=False).encode("utf-8")
-    sock.sendall(len(data).to_bytes(4, "big") + data)
+def send_message(sock, payload):
+    """Send a newline-delimited JSON message."""
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    sock.sendall(data + b"\n")
 
 
-def read_message(sock, max_bytes=32*1024*1024):
-    size_bytes = b""
-    while len(size_bytes) < 4:
-        chunk = sock.recv(4 - len(size_bytes))
-        if not chunk:
-            return None
-        size_bytes += chunk
-    size = int.from_bytes(size_bytes, "big")
-    if size > max_bytes:
-        return None
+def read_message(sock, max_bytes=32 * 1024 * 1024):
+    """Read a newline-delimited JSON message."""
     data = b""
-    while len(data) < size:
-        chunk = sock.recv(size - len(data))
+    while True:
+        chunk = sock.recv(4096)
         if not chunk:
             return None
+        newline = chunk.find(b"\n")
+        if newline >= 0:
+            data += chunk[:newline]
+            break
         data += chunk
+        if len(data) > max_bytes:
+            return None
     return json.loads(data.decode("utf-8"))
 
 
@@ -176,7 +225,7 @@ def main():
                         result = handler(params)
                         send_message(conn, {"id": req_id, "ok": True, "result": result})
                     except Exception as e:
-                        send_message(conn, {"id": req_id, "ok": False, "error": {"message": str(e), "type": type(e).__name__}})
+                        send_message(conn, {"id": req_id, "ok": False, "error": {"message": str(e), "type": type(e).__name__, "traceback": traceback.format_exc()}})
                 else:
                     send_message(conn, {"id": req_id, "ok": False, "error": {"message": f"Unknown method: {method}"}})
             conn.close()

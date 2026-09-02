@@ -78,7 +78,7 @@ Add to your MCP client configuration (e.g. `mcp_config.json` for Codex):
 
 ### 3. Use the tools
 
-Once connected, the AI client can use any of the 12 tools:
+Once connected, the AI client can use any of the 22 tools:
 
 | Tool | Description |
 |------|-------------|
