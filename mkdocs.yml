@@ -1,0 +1,64 @@
+site_name: Abaqus MCP Pro
+site_description: Professional MCP server suite for Abaqus/CAE
+repo_url: https://github.com/TutuBarry/abaqus-mcp-pro
+repo_name: TutuBarry/abaqus-mcp-pro
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - Guides:
+    - Architecture: guides/architecture.md
+    - Tools Reference: guides/tools.md
+    - Prompts: guides/prompts.md
+    - Skills: guides/skills.md
+    - noGUI Mode: guides/nogui.md
+  - Examples:
+    - Cantilever Beam: examples/cantilever.md
+    - Tensile Bar: examples/tensile-bar.md
+  - API Reference:
+    - Client: api/client.md
+    - Transport: api/transport.md
+  - About:
+    - Credits: about/credits.md
+    - License: about/license.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - tables
+  - footnotes
+  - toc:
+      permalink: true

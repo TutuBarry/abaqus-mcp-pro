@@ -1,5 +1,10 @@
 # ABAQUS MCP Pro
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![CI](https://github.com/TutuBarry/abaqus-mcp-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/TutuBarry/abaqus-mcp-pro/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/TutuBarry/abaqus-mcp-pro)](https://github.com/TutuBarry/abaqus-mcp-pro/releases)
+[![Abaqus](https://img.shields.io/badge/Abaqus-2024%2B-orange)](https://www.3ds.com/products/simulia/abaqus)
 Professional MCP server suite for Abaqus/CAE -- 100+ tools, dual transport, capsule tracking, physics contracts, and skills integration (Codex, Claude, etc.).
 
 ## Architecture
