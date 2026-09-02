@@ -30,10 +30,10 @@ abaqus-mcp-pro-doctor = "abaqus_mcp_pro.cli:doctor_main"
 abaqus-mcp-pro-setup = "abaqus_mcp_pro.cli:setup_main"
 
 [project.urls]
-Homepage = "https://github.com/abaqus-mcp-pro/abaqus-mcp-pro"
-Repository = "https://github.com/abaqus-mcp-pro/abaqus-mcp-pro"
-Issues = "https://github.com/abaqus-mcp-pro/abaqus-mcp-pro/issues"
-Documentation = "https://github.com/abaqus-mcp-pro/abaqus-mcp-pro#readme"
+Homepage = "https://github.com/TutuBarry/abaqus-mcp-pro"
+Repository = "https://github.com/TutuBarry/abaqus-mcp-pro"
+Issues = "https://github.com/TutuBarry/abaqus-mcp-pro/issues"
+Documentation = "https://github.com/TutuBarry/abaqus-mcp-pro#readme"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pytest-cov>=4.0"]

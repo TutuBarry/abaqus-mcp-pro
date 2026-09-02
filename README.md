@@ -189,4 +189,4 @@ abaqus-mcp-pro/
 
 ## Credits
 
-Built by integrating the best features from:\r\n\r\n- [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP) -- TCP socket bridge, AST diagnostics\r\n- [CAE-Agent-Hub](https://github.com/Cai-aa/CAE-Agent-Hub) -- High-level tools, skills, and architecture\r\n- [Codex_MCP_Abaqus](https://github.com/username/Codex_MCP_Abaqus) -- noGUI mode and examples\r\n
+Built by integrating the best features from:\r\n\r\n- [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP) -- TCP socket bridge, AST diagnostics\r\n- [CAE-Agent-Hub](https://github.com/Cai-aa/CAE-Agent-Hub) -- High-level tools, skills, and architecture\r\n- [Codex_MCP_Abaqus](https://github.com/TutuBarry/Codex_MCP_Abaqus) -- noGUI mode and examples\r\n
