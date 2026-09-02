@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific
+*.log
+*.odb
+*.odb_f
+*.prt
+*.sim
+*.com
+*.msg
+*.dat
+*.sta
+*.inp
+*.cae
+*.jnl
+*.rec
+*.rpy
+*.abq
+*.lck
+*.mdl
+*.stt
+*.pac
+*.sel
+*.par
+*.pmg
+*.ipm
+*.023
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
