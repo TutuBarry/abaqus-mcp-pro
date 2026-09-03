@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from src.abaqus_mcp_pro.silent_failures import (
+from abaqus_mcp_pro.silent_failures import (
     SilentFailureFinding,
     SilentFailureReport,
     format_silent_failures_markdown,

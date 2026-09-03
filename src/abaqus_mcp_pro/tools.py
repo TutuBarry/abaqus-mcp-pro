@@ -10,8 +10,8 @@ from collections import defaultdict
 from .transport import _bridge_request, _exec, DEFAULT_HOST, DEFAULT_PORT
 from .solver_diagnosis import DIAGNOSE_IN_ABAQUS_CODE, DiagnosisReport, DiagnosticEvent
 from .odb_lens import KPI_LENS_CODE, KPILensReport, KPIResult
-from .silent_failures import (SILENT_FAILURE_CHECKS_CODE, SilentFailureReport,
-                               SilentFailureFinding, format_silent_failures_markdown, parse_silent_failures_results)
+from .silent_failures import (SILENT_FAILURE_CHECKS_CODE,
+                               format_silent_failures_markdown, parse_silent_failures_results)
 from .capsule import CapsuleEntry, CapsuleStore, CAPSULE_CAPTURE_CODE, format_capsule_markdown, format_capsule_list_markdown, diff_capsules
 from .contracts import check_contracts, format_contracts_markdown, format_contracts_compact
 from .report import SimulationReport, format_report_markdown, build_report, save_report
