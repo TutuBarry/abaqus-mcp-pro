@@ -115,7 +115,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=float(os.environ.get("ABAQUS_MCP_TIMEOUT", "10")),
     )
 
-    setup_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "setup",
         help="Install GUI plugin for Abaqus/CAE.",
     )

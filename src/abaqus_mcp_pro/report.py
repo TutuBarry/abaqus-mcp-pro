@@ -96,8 +96,8 @@ def format_report_markdown(report: SimulationReport) -> str:
         capsule = report.capsule
 
         # Basic info
-        lines.append(f"| Property | Value |")
-        lines.append(f"|----------|-------|")
+        lines.append("| Property | Value |")
+        lines.append("|----------|-------|")
         if capsule.abaqus_version:
             lines.append(f"| Abaqus Version | {capsule.abaqus_version} |")
         if capsule.job_name:
@@ -167,7 +167,6 @@ def format_report_markdown(report: SimulationReport) -> str:
                 else:
                     val_str = f"{r.value:.6g}" if isinstance(r.value, (int, float)) else str(r.value)
                     meta = r.metadata or {}
-                    step = meta.get("step", "-")
                     frame = meta.get("frame", "-")
                     aggregation = meta.get("aggregation", "-")
                     lines.append(f"| {r.query_id} | {meta.get('field', '-')} | {val_str} | {aggregation} | {frame} |")
@@ -215,8 +214,8 @@ def format_report_markdown(report: SimulationReport) -> str:
         lines.append("")
 
         # Summary counts
-        lines.append(f"| Severity | Count |")
-        lines.append(f"|----------|-------|")
+        lines.append("| Severity | Count |")
+        lines.append("|----------|-------|")
         lines.append(f"| Error | {diag.error_count} |")
         lines.append(f"| Warning | {diag.warning_count} |")
         lines.append(f"| Info | {diag.info_count} |")

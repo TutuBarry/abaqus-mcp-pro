@@ -506,7 +506,7 @@ def _thread_is_alive(thread_obj):
 
 def _mcp_thread_loop(generation, poll_interval):
     """Background polling loop used by non-blocking start modes."""
-    global _mcp_running, _mcp_thread, _mcp_generation
+    global _mcp_running, _mcp_thread
     last_status_time = 0.0
     cleanup_time = 0.0
 
@@ -554,7 +554,7 @@ def _mcp_thread_loop(generation, poll_interval):
 
 
 def _start_worker(interval=0.1, mode_name='background'):
-    global _mcp_running, _mcp_thread, _mcp_generation, _mcp_poll_interval
+    global _mcp_running, _mcp_thread, _mcp_poll_interval
     global _mcp_commands_processed, _mcp_start_time
 
     if _thread_is_alive(_mcp_thread):
@@ -615,7 +615,7 @@ def _start_worker(interval=0.1, mode_name='background'):
 
 def mcp_start(interval=0.1):
     """Start background thread polling (experimental on some Abaqus builds)."""
-    global _mcp_running, _mcp_poll_interval
+    global _mcp_poll_interval
 
     if _mcp_running:
         print('MCP: Already running')
@@ -649,7 +649,7 @@ def mcp_start_timer(interval=0.1):
 
 def mcp_stop():
     """Stop mcp_loop() or mcp_start()."""
-    global _mcp_running, _mcp_thread, _mcp_generation
+    global _mcp_running, _mcp_thread
 
     _mcp_running = False
     _mcp_generation += 1

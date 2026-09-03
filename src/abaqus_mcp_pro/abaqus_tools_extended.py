@@ -910,7 +910,7 @@ async def create_contact_property(
     """Create a contact interaction property."""
     friction_block = ""
     if friction_coefficient > 0:
-        friction_block = f"prop.TangentialBehavior(formulation=FRICTIONLESS)"
+        friction_block = "prop.TangentialBehavior(formulation=FRICTIONLESS)"
         friction_block = f"prop.TangentialBehavior(formulation=PENALTY, table=(({friction_coefficient!r},),))"
     code = f"""
 import json
@@ -1500,8 +1500,6 @@ async def get_xy_data(
         element_label: element label for element-based extraction
         frame_index: -1 for last frame
     """
-    node_select = f"nodeLabel={node_label!r}" if node_label else ""
-    elem_select = f"elementLabel={element_label!r}" if element_label else ""
     code = f"""
 import json
 try:
