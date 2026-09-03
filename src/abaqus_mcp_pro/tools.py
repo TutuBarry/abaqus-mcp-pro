@@ -5,16 +5,16 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
-from collections import defaultdict
+from collections import OrderedDict
 
 from .transport import _bridge_request, _exec, DEFAULT_HOST, DEFAULT_PORT
-from .solver_diagnosis import DIAGNOSE_IN_ABAQUS_CODE, DiagnosisReport, DiagnosticEvent
-from .odb_lens import KPI_LENS_CODE, KPILensReport, KPIResult
+from .solver_diagnosis import DIAGNOSE_IN_ABAQUS_CODE
+from .odb_lens import KPI_LENS_CODE
 from .silent_failures import (SILENT_FAILURE_CHECKS_CODE,
                                format_silent_failures_markdown, parse_silent_failures_results)
 from .capsule import CapsuleEntry, CapsuleStore, CAPSULE_CAPTURE_CODE, format_capsule_markdown, format_capsule_list_markdown, diff_capsules
-from .contracts import check_contracts, format_contracts_markdown, format_contracts_compact
-from .report import SimulationReport, format_report_markdown, build_report, save_report
+from .contracts import check_contracts, format_contracts_markdown
+from .report import format_report_markdown, build_report, save_report
 from .abaqus_tools import (
     set_run_python as _set_run_python,
     create_elastic_material,
@@ -108,8 +108,7 @@ from .abaqus_tools_extended import (
 )
 
 from .convergence_advisor import (
-    get_advice_for_pattern, get_advice_for_patterns,
-    format_convergence_advice_markdown, format_convergence_advice_compact,
+    get_advice_for_patterns,
     format_all_advice_markdown, extract_pattern_ids_from_diagnosis,
 )
 
@@ -525,7 +524,7 @@ def _format_diagnosis_report_markdown(report: dict) -> str:
         lines.append("No diagnostic events found. The solver output appears clean.")
         return "\n".join(lines)
 
-    from collections import defaultdict
+    from collections import OrderedDict
     grouped: dict[str, list[dict]] = defaultdict(list)
     for e in events:
         grouped[e.get("category", "unknown")].append(e)

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from .transport import DEFAULT_HOST, DEFAULT_PORT, _socket_request, _json_string
 
 

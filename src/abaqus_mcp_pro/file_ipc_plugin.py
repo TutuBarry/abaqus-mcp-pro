@@ -25,7 +25,7 @@ from datetime import datetime
 __version__ = '4.0.0'
 
 try:
-    from abaqus import mdb, session
+    from abaqus import session
     ABAQUS_AVAILABLE = True
 except ImportError:
     ABAQUS_AVAILABLE = False

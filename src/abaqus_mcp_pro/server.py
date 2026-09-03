@@ -10,7 +10,6 @@ commands/results file queue while preserving the existing Abaqus-specific tools.
 
 from __future__ import annotations
 
-import os
 
 from mcp.server.fastmcp import FastMCP
 

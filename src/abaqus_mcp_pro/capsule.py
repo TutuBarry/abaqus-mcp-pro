@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
 from typing import Any
 
 
@@ -140,7 +138,6 @@ import json as _json
 import os as _os
 import sys as _sys
 import time as _time
-from datetime import datetime, timezone as _timezone
 
 _capsule_id = __CAPSULE_ID__
 _notes = __NOTES__
