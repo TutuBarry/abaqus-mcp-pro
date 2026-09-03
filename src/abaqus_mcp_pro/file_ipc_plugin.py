@@ -548,7 +548,7 @@ def _mcp_thread_loop(generation, poll_interval):
         if _mcp_generation == generation:
             _mcp_running = False
             _mcp_thread = None
-            write_status('stopped', 'Polling stopped')
+            write_status('stopped', 'Polling stopped (gen=%d)' % _mcp_generation)
             print('MCP: Background loop ended')
             _log('INFO', 'Background loop ended')
 
@@ -649,7 +649,7 @@ def mcp_start_timer(interval=0.1):
 
 def mcp_stop():
     """Stop mcp_loop() or mcp_start()."""
-    global _mcp_running, _mcp_thread
+    global _mcp_running, _mcp_thread, _mcp_generation
 
     _mcp_running = False
     _mcp_generation += 1
@@ -667,7 +667,7 @@ def mcp_stop():
             pass
 
     _mcp_thread = None
-    write_status('stopped', 'Polling stopped')
+    write_status('stopped', 'Polling stopped (gen=%d)' % _mcp_generation)
     print('MCP: Stop signal sent')
     _log('INFO', 'Stop signal sent')
 
@@ -722,7 +722,7 @@ def mcp_loop(sleep_interval=0.1):
         print('MCP: Error: ' + str(e))
         _log('ERROR', 'mcp_loop: ' + str(e))
 
-    write_status('stopped', 'Polling stopped')
+    write_status('stopped', 'Polling stopped (gen=%d)' % _mcp_generation)
     print('MCP: Loop ended')
     _log('INFO', 'Blocking loop ended')
 
@@ -781,7 +781,7 @@ def mcp_coop_loop(sleep_interval=0.1):
         print('MCP: Error: ' + str(e))
         _log('ERROR', 'mcp_coop_loop: ' + str(e))
 
-    write_status('stopped', 'Polling stopped')
+    write_status('stopped', 'Polling stopped (gen=%d)' % _mcp_generation)
     print('MCP: Cooperative loop ended')
     _log('INFO', 'Cooperative loop ended')
 
