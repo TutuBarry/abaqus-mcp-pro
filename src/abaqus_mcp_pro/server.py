@@ -11,7 +11,7 @@ commands/results file queue while preserving the existing Abaqus-specific tools.
 from __future__ import annotations
 
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .tools import register_tools
 from .resources import register_resources
@@ -50,7 +50,7 @@ For a full list of all available skills, read abaqus://skills/list.
 Always read the relevant skill before executing a new type of analysis.
 """
 
-mcp = FastMCP("abaqus-mcp-pro", instructions=INSTRUCTIONS)
+mcp = MCPServer("abaqus-mcp-pro", instructions=INSTRUCTIONS)
 
 register_tools(mcp)
 register_prompts(mcp)
