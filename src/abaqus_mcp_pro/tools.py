@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
-from collections import OrderedDict
 
 from .transport import _bridge_request, _exec, DEFAULT_HOST, DEFAULT_PORT
 from .solver_diagnosis import DIAGNOSE_IN_ABAQUS_CODE
@@ -524,7 +523,7 @@ def _format_diagnosis_report_markdown(report: dict) -> str:
         lines.append("No diagnostic events found. The solver output appears clean.")
         return "\n".join(lines)
 
-    from collections import OrderedDict
+    from collections import defaultdict
     grouped: dict[str, list[dict]] = defaultdict(list)
     for e in events:
         grouped[e.get("category", "unknown")].append(e)

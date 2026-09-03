@@ -68,6 +68,7 @@ def _get_file_ipc_client():
 def _file_ipc_request(method: str, params: dict[str, Any] | None = None, timeout: float | None = None) -> dict[str, Any]:
     """Send a request to Abaqus via file IPC and return the result."""
     client = _get_file_ipc_client()
+    from .client import FileIPCClient
     effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
     client_with_timeout = FileIPCClient(
         mcp_home=client.mcp_home,
