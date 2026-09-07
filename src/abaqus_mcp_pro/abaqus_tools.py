@@ -469,7 +469,7 @@ try:
             variableLabel={variable!r},
             outputPosition=INTEGRATION_POINT,
             refinement=(COMPONENT, {component!r}))
-        vp.odbDisplay.display.setValues(plotState=({plot_type.upper()!r},))
+        vp.odbDisplay.display.setValues(plotState=(CONTOURS_ON_DEF,))
         vp.view.setValues({deform_scale})
         result = {{"ok": True, "plot_type": {plot_type!r}, "variable": {variable!r}, "component": {component!r}}}
     else:
@@ -598,6 +598,111 @@ try:
     result = {{"ok": True, "layout": {layout!r}, "viewports": vp_names}}
 except Exception as e:
     result = {{"ok": False, "error": str(e), "error_type": type(e).__name__}}
+print("JSON_RESULT:", json.dumps(result))
+"""
+    return await _run_python(code, timeout=timeout)
+async def capture_result_contours(
+    odb_path: str | None = None,
+    output_dir: str | None = None,
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Capture both stress (Mises) and displacement (Magnitude) contour plots from an ODB.
+
+    After an analysis completes, call this to get both contour screenshots
+    automatically. Saves PNG files to output_dir and returns the file paths.
+
+    Args:
+        odb_path: Path to the .odb file. If None, uses currently displayed ODB.
+        output_dir: Directory to save PNG files. Defaults to ODB's directory.
+    """
+    code = f"""
+import os, base64, json, sys
+from abaqus import session
+from abaqusConstants import *
+
+odb_path = {odb_path!r}
+output_dir = {output_dir!r}
+
+try:
+    vp_name = session.currentViewportName
+    vp = session.viewports[vp_name]
+
+    if odb_path:
+        for odb_name in list(session.odbs.keys()):
+            try:
+                session.odbs[odb_name].close()
+            except:
+                pass
+        odb = session.openOdb(name=odb_path, readOnly=True)
+        vp.setValues(displayedObject=odb)
+        if not output_dir:
+            output_dir = os.path.dirname(odb_path)
+    else:
+        odb = vp.displayedObject
+        if not output_dir:
+            output_dir = os.path.dirname(odb.name)
+
+    vp.odbDisplay.setFrame(step=0, frame=-1)
+    vp.odbDisplay.commonOptions.setValues(
+        renderStyle=SHADED,
+        visibleEdges=FEATURE,
+        deformationScaling=UNIFORM,
+        uniformScaleFactor=1.0,
+    )
+
+    # Stress contour (Mises)
+    vp.odbDisplay.setPrimaryVariable(
+        variableLabel="S",
+        outputPosition=INTEGRATION_POINT,
+        refinement=(INVARIANT, "Mises"),
+    )
+    vp.odbDisplay.contourOptions.setValues(
+        contourStyle=CONTINUOUS,
+        numIntervals=12,
+        minAutoCompute=ON,
+        maxAutoCompute=ON,
+        showMinLocation=ON,
+        showMaxLocation=ON,
+    )
+    vp.odbDisplay.display.setValues(plotState=(CONTOURS_ON_DEF,))
+    vp.view.setValues(projection=PARALLEL)
+    vp.view.fitView()
+
+    stress_path = os.path.join(output_dir, "_result_mises_stress.png")
+    session.printOptions.setValues(vpDecorations=True, vpBackground=False)
+    session.pngOptions.setValues(imageSize=(1600, 1000))
+    session.printToFile(fileName=stress_path, format=PNG, canvasObjects=(vp,))
+
+    with open(stress_path, "rb") as f:
+        stress_b64 = base64.b64encode(f.read()).decode("ascii")
+
+    # Displacement contour (Magnitude)
+    vp.odbDisplay.setPrimaryVariable(
+        variableLabel="U",
+        outputPosition=NODAL,
+        refinement=(INVARIANT, "Magnitude"),
+    )
+
+    disp_path = os.path.join(output_dir, "_result_displacement.png")
+    session.printToFile(fileName=disp_path, format=PNG, canvasObjects=(vp,))
+
+    with open(disp_path, "rb") as f:
+        disp_b64 = base64.b64encode(f.read()).decode("ascii")
+
+    result = {{
+        "ok": True,
+        "stress_path": stress_path,
+        "displacement_path": disp_path,
+        "stress_base64": stress_b64,
+        "displacement_base64": disp_b64,
+    }}
+except Exception as e:
+    import traceback
+    result = {{
+        "ok": False,
+        "error": str(e),
+        "error_type": type(e).__name__,
+    }}
 print("JSON_RESULT:", json.dumps(result))
 """
     return await _run_python(code, timeout=timeout)

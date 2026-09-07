@@ -31,7 +31,6 @@ The MCP server runs as a subprocess of the AI client. When the client invokes a 
 - **22 MCP tools** -- Full Abaqus automation: model query, job management, ODB inspection, KPI extraction, capsule tracking, physics contracts, report generation, viewport capture
 - **13 MCP prompts** -- Guided workflows for static, dynamic, modal, thermal, contact, fatigue, coupled, optimization, material, mesh, ODB extraction, and job debugging
 - **74 MCP resources** -- Session telemetry, skills knowledge base, CAE-Agent-Hub integration
-- **AST error diagnostics** -- Auto-analyzes KeyError, AttributeError, NameError, TypeError and suggests fixes
 - **3 CLI tools** -- check, doctor, setup
 - **Dual transport** -- TCP socket (primary) + file IPC (fallback)
 - **noGUI mode** -- run Abaqus in batch mode without GUI

@@ -61,3 +61,6 @@ htmlcov/
 *.tmp
 *.bak
 *.orig
+
+# Example outputs
+examples/output/

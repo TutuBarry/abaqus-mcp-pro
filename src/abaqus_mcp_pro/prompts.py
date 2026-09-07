@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.types import PromptMessage, TextContent
+from mcp_types import PromptMessage, TextContent
 
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ from .abaqus_tools import (
     set_viewport_view,
     set_viewport_annotations,
     create_multiple_viewports,
+    capture_result_contours,
 )
 from .abaqus_tools_extended import (
     set_run_python as _set_run_python_ext,
@@ -109,6 +110,27 @@ from .abaqus_tools_extended import (
 from .convergence_advisor import (
     get_advice_for_patterns,
     format_all_advice_markdown, extract_pattern_ids_from_diagnosis,
+)
+
+from .nogui import (
+    run_python_no_gui,
+    abaqus_cae_no_gui,
+    submit_job_no_gui,
+    check_job_status as check_job_status_nogui,
+    get_abaqus_command_path,
+)
+
+from .pywinauto_tools import (
+    find_abaqus_window,
+    execute_script_in_abaqus_gui,
+    get_abaqus_gui_message_log,
+)
+
+from .abaqus_docs import (
+    search_abaqus_help,
+    get_abaqus_doc_entry,
+    suggest_abaqus_pattern,
+    get_abaqus_docs_status,
 )
 
 def _json_string(data: Any) -> str:
@@ -725,7 +747,7 @@ def _format_kpi_lens_markdown(report: dict) -> str:
     for r in results:
         qid = r.get("query_id", "?")
         if r.get("error"):
-            lines.append(f"| {qid} | ERROR | 鈥?| {r['error']} |")
+            lines.append(f"| {qid} | ERROR | 閳?| {r['error']} |")
         else:
             val = r.get("value")
             if isinstance(val, float):
@@ -1003,9 +1025,29 @@ async def generate_report(
 async def capture_viewport(
     viewport_name: str = "",
     image_format: str = "PNG",
+    width: int = 1600,
+    height: int = 1000,
+    background: bool = False,
+    decorations: bool = True,
+    field_variable: str = "",
+    field_component: str = "",
+    frame_index: int = -1,
     timeout: float | None = None,
 ) -> dict[str, Any]:
-    """Capture an Abaqus viewport as base64 image data."""
+    """Capture an Abaqus viewport as base64 image data.
+
+    Args:
+        viewport_name: Name of viewport to capture (empty = current)
+        image_format: Output format - PNG, TIFF, SVG, EPS, PS
+        width: Image width in pixels (default 1600)
+        height: Image height in pixels (default 1000)
+        background: Include background color (True=white bg, False=transparent)
+        decorations: Include viewport decorations (title, legend, triad, etc.)
+        field_variable: Field output variable to display (e.g. "S", "U", "RF")
+        field_component: Component/invariant (e.g. "Mises", "S11", "U1"). Default "Mises" for S, "Magnitude" for U
+        frame_index: Frame index (-1 = last frame, 0 = first)
+        timeout: Maximum wait time in seconds
+    """
     code = r"""
 import os
 import tempfile
@@ -1015,6 +1057,14 @@ import abaqusConstants
 
 vp_name = __VP_NAME__
 fmt_name = __FORMAT__.upper()
+img_width = __IMG_WIDTH__
+img_height = __IMG_HEIGHT__
+show_bg = __SHOW_BG__
+show_decor = __SHOW_DECOR__
+field_var = __FIELD_VAR__
+field_comp = __FIELD_COMP__
+frm_idx = __FRAME_IDX__
+
 fmt_map = {
     "PNG": abaqusConstants.PNG,
     "TIFF": abaqusConstants.TIFF,
@@ -1027,12 +1077,58 @@ fmt = fmt_map.get(fmt_name, abaqusConstants.PNG)
 if not vp_name or vp_name not in session.viewports.keys():
     vp_name = session.currentViewportName
 vp = session.viewports[vp_name]
+
+# Set field variable and contour display when requested
+if field_var:
+    # Get the ODB from the viewport
+    odb = vp.displayedObject
+    if odb is not None:
+        # Set step and frame
+        try:
+            if frm_idx >= 0:
+                vp.odbDisplay.setFrame(step=0, frame=frm_idx)
+            else:
+                # Use last frame of last step
+                from abaqusConstants import LAST_FRAME
+                vp.odbDisplay.setFrame(step=0, frame=LAST_FRAME)
+        except Exception:
+            pass
+        # Set primary variable
+        try:
+            from abaqusConstants import INTEGRATION_POINT, COMPONENT, INVARIANT
+            if field_comp:
+                refinement = (COMPONENT, field_comp)
+            elif field_var == "S":
+                refinement = (INVARIANT, "Mises")
+            elif field_var == "U":
+                refinement = (INVARIANT, "Magnitude")
+            elif field_var == "RF":
+                refinement = (INVARIANT, "Magnitude")
+            else:
+                refinement = (INVARIANT, "Mises")
+            vp.odbDisplay.setPrimaryVariable(
+                variableLabel=field_var,
+                outputPosition=INTEGRATION_POINT,
+                refinement=refinement,
+            )
+        except Exception:
+            pass
+        # Set contour on deformed display
+        try:
+            from abaqusConstants import CONTOURS_ON_DEF
+            vp.odbDisplay.display.setValues(plotState=(CONTOURS_ON_DEF,))
+        except Exception:
+            pass
+
 suffix = "." + fmt_name.lower()
 handle = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
 tmp_path = handle.name
 handle.close()
 
 try:
+    # Set print options for quality output
+    session.printOptions.setValues(vpDecorations=show_decor, vpBackground=show_bg)
+    session.pngOptions.setValues(imageSize=(img_width, img_height))
     session.printToFile(fileName=tmp_path, format=fmt, canvasObjects=(vp,))
     with open(tmp_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("ascii")
@@ -1048,13 +1144,26 @@ finally:
         os.unlink(tmp_path)
     except Exception:
         pass
-""".replace("__VP_NAME__", json.dumps(viewport_name.strip())).replace("__FORMAT__", json.dumps(image_format.strip() or "PNG"))
+""".replace("__VP_NAME__", json.dumps(viewport_name.strip())).replace("__FORMAT__", json.dumps(image_format.strip() or "PNG")).replace("__IMG_WIDTH__", str(width)).replace("__IMG_HEIGHT__", str(height)).replace("__SHOW_BG__", str(background)).replace("__SHOW_DECOR__", str(decorations)).replace("__FIELD_VAR__", json.dumps(field_variable.strip())).replace("__FIELD_COMP__", json.dumps(field_component.strip())).replace("__FRAME_IDX__", str(frame_index))
     return (await run_python(code, timeout or 60.0)).get("return_value")
 
-
-async def get_viewport_image(viewport_name: str = "", image_format: str = "PNG", timeout: float | None = None) -> str:
+async def get_viewport_image(
+    viewport_name: str = "",
+    image_format: str = "PNG",
+    field_variable: str = "",
+    field_component: str = "",
+    frame_index: int = -1,
+    timeout: float | None = None,
+) -> str:
     """Compatibility wrapper returning a data URI for the requested viewport."""
-    data = await capture_viewport(viewport_name, image_format, timeout)
+    data = await capture_viewport(
+        viewport_name=viewport_name,
+        image_format=image_format,
+        field_variable=field_variable,
+        field_component=field_component,
+        frame_index=frame_index,
+        timeout=timeout,
+    )
     fmt = data.get("format", "png")
     b64 = data.get("image_base64", "")
     return f"data:image/{fmt};base64,{b64}"
@@ -1261,6 +1370,7 @@ def register_tools(mcp) -> None:
     mcp_tool(set_viewport_view)
     mcp_tool(set_viewport_annotations)
     mcp_tool(create_multiple_viewports)
+    mcp_tool(capture_result_contours)
 
     # Extended Abaqus API tools - Loads
     mcp_tool(create_concentrated_force)
@@ -1354,3 +1464,21 @@ def register_tools(mcp) -> None:
     # Extended Abaqus API tools - More Sections
     mcp_tool(create_beam_section)
     mcp_tool(create_shell_section)
+
+    # No-GUI tools (subprocess-based execution)
+    mcp_tool(run_python_no_gui)
+    mcp_tool(abaqus_cae_no_gui)
+    mcp_tool(submit_job_no_gui)
+    mcp_tool(check_job_status_nogui)
+    mcp_tool(get_abaqus_command_path)
+
+    # Non-invasive GUI automation tools (pywinauto)
+    mcp_tool(find_abaqus_window)
+    mcp_tool(execute_script_in_abaqus_gui)
+    mcp_tool(get_abaqus_gui_message_log)
+
+    # Abaqus Help Documentation RAG tools
+    mcp_tool(search_abaqus_help)
+    mcp_tool(get_abaqus_doc_entry)
+    mcp_tool(suggest_abaqus_pattern)
+    mcp_tool(get_abaqus_docs_status)
