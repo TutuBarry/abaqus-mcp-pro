@@ -11,7 +11,7 @@ commands/results file queue while preserving the existing Abaqus-specific tools.
 from __future__ import annotations
 
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server import MCPServer
 
 from .tools import register_tools
 from .resources import register_resources
