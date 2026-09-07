@@ -71,7 +71,6 @@ is connected, mode 2 for headless/automated work, and mode 3 as a fallback when 
 plugin can't be installed.
 """
 
-
 def _ensure_gui_plugin() -> None:
     """Install the GUI plugin silently if not already present."""
     try:
