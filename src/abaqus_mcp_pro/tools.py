@@ -1482,3 +1482,180 @@ def register_tools(mcp) -> None:
     mcp_tool(get_abaqus_doc_entry)
     mcp_tool(suggest_abaqus_pattern)
     mcp_tool(get_abaqus_docs_status)
+    mcp_tool(export_result_mesh)
+import json as _json_mod
+
+
+async def export_result_mesh(
+    odb_path: str,
+    output_path: str = "",
+    step_index: int = -1,
+    frame_step: int = 1,
+    deformation_scale: float = 1.0,
+    timeout: float | None = None,
+) -> str:
+    """Export ODB results to result_mesh.json for the 3D viewer.
+
+    Reads mesh geometry, element connectivity, and field output from an
+    Abaqus ODB file and writes a JSON file that can be loaded by the
+    browser-based 3D result viewer.
+
+    Args:
+        odb_path: Path to the ODB file (absolute or relative to workdir).
+        output_path: Output JSON path (default: odb_path.result_mesh.json).
+        step_index: Step index to export (-1 = last step).
+        frame_step: Export every Nth frame (1 = all frames).
+        deformation_scale: Deformation scale factor for visualization.
+        timeout: Maximum wait time in seconds.
+
+    Returns:
+        JSON string with output_path, node_count, element_count, frame_count.
+    """
+    code = r"""
+import json, os
+from datetime import datetime
+from odbAccess import openOdb
+
+odb_path = r__ODB_PATH__
+output_path = r__OUTPUT_PATH__
+step_index = __STEP_IDX__
+frame_step = __FRAME_STEP__
+deformation_scale = __DEF_SCALE__
+fields = ["S", "U", "PEEQ", "RF"]
+
+if not output_path:
+    output_path = os.path.splitext(odb_path)[0] + ".result_mesh.json"
+
+odb = openOdb(path=odb_path, readOnly=True)
+try:
+    steps = list(odb.steps.values())
+    if not steps:
+        raise ValueError("No steps found in ODB.")
+    if step_index < 0:
+        step_index = len(steps) + step_index
+    if step_index < 0 or step_index >= len(steps):
+        step_index = 0
+    step = steps[step_index]
+    all_frames = list(step.frames)
+    if not all_frames:
+        raise ValueError("No frames found in step.")
+    selected_frames = all_frames[::frame_step]
+    if not selected_frames:
+        selected_frames = [all_frames[-1]]
+    last_frame = all_frames[-1]
+    inst_keys = list(odb.rootAssembly.instances.keys())
+    instance = odb.rootAssembly.instances[inst_keys[0]]
+    nodes_dict = {}
+    for node in instance.nodes:
+        nodes_dict[node.label] = list(node.coordinates)
+    nodes = [None]
+    max_label = max(nodes_dict.keys()) if nodes_dict else 0
+    for i in range(1, max_label + 1):
+        nodes.append(nodes_dict.get(i, [0.0, 0.0, 0.0]))
+    elements = {}
+    for elem in instance.elements:
+        etype = elem.type.name
+        if etype not in elements:
+            elements[etype] = []
+        elements[etype].append([node.label for node in elem.connectivity])
+    available_fields = {}
+    field_outputs = last_frame.fieldOutputs
+    for fname in fields:
+        if fname in field_outputs:
+            fo = field_outputs[fname]
+            comps = []
+            for comp_data in fo.values[0].data:
+                if hasattr(comp_data, 'name'):
+                    comps.append(comp_data.name)
+            invars = getattr(fo.values[0], 'invariants', None)
+            if invars:
+                for inv in invars:
+                    comps.append(inv)
+            available_fields[fname] = {
+                "name": fname, "key": fname,
+                "label": fo.description or fname,
+                "components": comps,
+            }
+    field_meta = []
+    for fname, info in available_fields.items():
+        for comp in info["components"]:
+            field_meta.append({
+                "name": "%s_%s" % (fname, comp),
+                "key": fname, "component": comp,
+                "label": "%s (%s)" % (info["label"], comp), "unit": "",
+            })
+    frames_data = []
+    for fi, frame in enumerate(selected_frames):
+        frame_dict = {"frame": fi, "time": frame.frameValue}
+        f_outputs = frame.fieldOutputs
+        for fname in available_fields:
+            if fname not in f_outputs:
+                continue
+            fo = f_outputs[fname]
+            val_map = {}
+            for val in fo.values:
+                nid = val.nodeLabel
+                if hasattr(val, 'mises'):
+                    val_map[nid] = val.mises
+                elif hasattr(val, 'magnitude'):
+                    val_map[nid] = val.magnitude
+                elif hasattr(val, 'data'):
+                    d = val.data
+                    if isinstance(d, float):
+                        val_map[nid] = d
+                    elif hasattr(d, '__len__') and len(d) > 0:
+                        val_map[nid] = float(d[0])
+                    else:
+                        val_map[nid] = float(d)
+                else:
+                    val_map[nid] = 0.0
+            values = [None]
+            for i in range(1, max_label + 1):
+                values.append(val_map.get(i, 0.0))
+            vmin = min(v for v in values[1:] if v is not None)
+            vmax = max(v for v in values[1:] if v is not None)
+            frame_dict[fname] = {"values": values, "min": vmin, "max": vmax}
+        if "U" in f_outputs:
+            u_fo = f_outputs["U"]
+            disp = [None]
+            for i in range(1, max_label + 1):
+                disp.append([0.0, 0.0, 0.0])
+            for val in u_fo.values:
+                nid = val.nodeLabel
+                if nid <= max_label:
+                    d = val.data
+                    disp[nid] = [float(d[0]), float(d[1]), float(d[2])]
+            frame_dict["displacement"] = disp
+        frames_data.append(frame_dict)
+    result = {
+        "format_version": "1.0",
+        "export_time": datetime.now().isoformat(),
+        "model_name": odb.name or os.path.basename(odb_path),
+        "job_name": os.path.splitext(os.path.basename(odb_path))[0],
+        "abaqus_version": str(getattr(odb, 'odbVersion', '')),
+        "deformation_scale_factor": deformation_scale,
+        "nodes": nodes,
+        "elements": elements,
+        "fields": field_meta,
+        "steps": [{"name": step.name, "label": step.name, "procedure": step.procedure}],
+        "frames": frames_data,
+    }
+    with open(output_path, "w") as fp:
+        json.dump(result, fp, ensure_ascii=False, separators=(",", ":"))
+    total_elems = sum(len(v) for v in elements.values())
+    result = {
+        "success": True,
+        "output_path": output_path,
+        "node_count": len(nodes) - 1,
+        "element_count": total_elems,
+        "frame_count": len(frames_data),
+        "fields_exported": list(available_fields.keys()),
+    }
+finally:
+    odb.close()
+""".replace("__ODB_PATH__", _json_mod.dumps(odb_path)).replace("__OUTPUT_PATH__", _json_mod.dumps(output_path)).replace("__STEP_IDX__", str(step_index)).replace("__FRAME_STEP__", str(frame_step)).replace("__DEF_SCALE__", str(deformation_scale))
+    raw = await run_python(code, timeout or 300.0)
+    ret = raw.get("return_value")
+    if isinstance(ret, dict):
+        return _json_string(ret)
+    return str(ret)

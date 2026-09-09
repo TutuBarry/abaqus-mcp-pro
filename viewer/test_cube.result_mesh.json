@@ -1,0 +1,79 @@
+{
+  "format_version": "1.0",
+  "export_time": "2026-09-09T12:00:00",
+  "model_name": "test_cube",
+  "job_name": "test_cube",
+  "abaqus_version": "2024",
+  "deformation_scale_factor": 1.0,
+  "nodes": [
+    null,
+    [0.0, 0.0, 0.0],
+    [10.0, 0.0, 0.0],
+    [10.0, 10.0, 0.0],
+    [0.0, 10.0, 0.0],
+    [0.0, 0.0, 10.0],
+    [10.0, 0.0, 10.0],
+    [10.0, 10.0, 10.0],
+    [0.0, 10.0, 10.0]
+  ],
+  "elements": {
+    "C3D8R": [
+      [1, 2, 3, 4, 5, 6, 7, 8]
+    ]
+  },
+  "fields": [
+    {"name": "S_Mises", "key": "S", "component": "Mises", "label": "Mises Stress", "unit": "MPa"},
+    {"name": "U_Magnitude", "key": "U", "component": "Magnitude", "label": "Displacement", "unit": "mm"}
+  ],
+  "steps": [
+    {"name": "Step-1", "label": "Static", "procedure": "StaticGeneral"}
+  ],
+  "frames": [
+    {
+      "frame": 0,
+      "time": 0.0,
+      "S": {
+        "values": [null, 0, 0, 0, 0, 0, 0, 0, 0],
+        "min": 0.0, "max": 0.0
+      },
+      "U": {
+        "values": [null, 0, 0, 0, 0, 0, 0, 0, 0],
+        "min": 0.0, "max": 0.0
+      },
+      "displacement": [
+        null,
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0]
+      ]
+    },
+    {
+      "frame": 1,
+      "time": 1.0,
+      "S": {
+        "values": [null, 50, 30, 80, 20, 60, 40, 100, 10],
+        "min": 10.0, "max": 100.0
+      },
+      "U": {
+        "values": [null, 0.5, 0.3, 0.8, 0.2, 0.6, 0.4, 1.0, 0.1],
+        "min": 0.1, "max": 1.0
+      },
+      "displacement": [
+        null,
+        [0.0, 0.0, 0.0],
+        [0.1, 0.0, 0.0],
+        [0.1, 0.1, 0.0],
+        [0.0, 0.1, 0.0],
+        [0.0, 0.0, 0.2],
+        [0.1, 0.0, 0.2],
+        [0.1, 0.1, 0.2],
+        [0.0, 0.1, 0.2]
+      ]
+    }
+  ]
+}
