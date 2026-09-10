@@ -1,247 +1,327 @@
- # ABAQUS MCP Pro
+<div align="center">
 
- [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
- [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/downloads/)
+<img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
+<img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python">
+<img src="https://img.shields.io/github/v/release/TutuBarry/abaqus-mcp-pro?color=green" alt="Release">
+<img src="https://img.shields.io/badge/Abaqus-2024%2B-orange" alt="Abaqus">
 
- [English](README.md) | 中文
+<br>
+<br>
 
- > **让 AI 直接驱动 Abaqus。** 描述你想要的模型 —— 几何、材料、载荷、分析步 —— AI 就能在你正在运行的 Abaqus/CAE 会话中执行对应操作。
+```
+   ___    ____    ___    ____  __  __ ____    __  __  ____  ____    ____  ____   ___
+  / _ \  |  _ \  / _ \  / __ \ \ \/ /|  _ \  |  \/  ||  __||  _ \  |  _ \|  _ \ / _ \
+ | |_| | | |_) || |_| || |  | | \  / | | | | | |\/| || |__ | |_) | | |_) | |_) | | | |
+ |  _  | |  _ < |  _  || |  | | /  \ | | | | | |  | ||  __||  __/  |  __/|  _ <| |_| |
+ |_| |_| |_| \_\|_| |_| \____/ /_/\_\|_| |_| |_|  |_||____||_|     |_|   |_| \_\\___/
+```
 
- **ABAQUS MCP Pro** 通过 TCP socket 桥接，将 Codex、Claude 等 MCP 兼容客户端连接到正在运行的 Abaqus/CAE 实例。你描述任务，AI 将其转化为 Abaqus 操作，模型实时更新。
+**AI 原生 Abaqus 自动化 — MCP 服务器 + 3D 查看器 + 求解器诊断**
 
- 本项目整合了社区多个优秀开源项目的精华，核心架构基于 [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP)。
+[English](README.md) · [中文](README_ZH.md)
 
- ## 为什么选择它？
+</div>
 
- - **直接在 GUI 中工作** — 操作发生在当前 Abaqus 窗口中，几何、网格和结果即时可见。
- - **流畅建模体验** — 通过 TCP socket 桥接直接与 Abaqus 内核交互，延迟 10-50ms。
- - **完整 API 访问** — `mdb`、`session`、`odb` 以及其它 Python API 均可直接使用。
- - **保持会话可交互** — 工程师可以随时查看建模进度，无需中断会话。
- - **仅本地运行** — 桥接只监听 `127.0.0.1:48152`，数据不会离开你的机器。
- - **智能错误诊断** — 基于 AST 自动分析 KeyError、AttributeError、NameError、TypeError 并给出修复建议。
+---
 
- ## 架构
+## 这是什么？
 
- ```
- MCP 客户端 (Codex/Claude)
-     |
-     v  stdio
- MCP 服务器 (server.py)
-     |
-     v  TCP socket (localhost:48152)
- Abaqus GUI 插件 (gui_plugin.py)
-     |
-     v  Abaqus Python API
- Abaqus/CAE 内核
- ```
+ABAQUS MCP Pro 通过 TCP socket 桥接将 AI 助手直接连接到 Abaqus/CAE。你用自然语言描述仿真任务，AI 实时执行 — 建立几何、赋予材料、提交作业、诊断错误、可视化结果。
 
- MCP 服务器作为 AI 客户端的子进程运行。当客户端调用工具（如 `run_python`）时，服务器通过 TCP socket 将请求转发到运行在 Abaqus/CAE 内的轻量级代理，代理在 Abaqus Python 内核中执行代码并返回结果。
+> *"创建一个悬臂梁，端部施加 10 kN 载荷，用 C3D8R 单元划分网格，提交作业。"*
 
- ## 安装
+AI 通过 MCP 工具完成每一步操作，模型在你的 Abaqus 窗口中实时更新。
 
- ### 环境要求
+---
 
- - Python 3.10+
- - Abaqus 2024+（内置 Python 3.10）
- - MCP 兼容的 AI 客户端（Codex、Claude Desktop 等）
+## 快速开始
 
- ### 安装包
+```bash
+# 1. 安装
+pip install -e .
+abaqus-mcp-pro-setup
 
- ```bash
- pip install -e .
- ```
+# 2. 启动 Abaqus/CAE，激活插件
+#    Plug-ins > ABAQUS MCP Pro > Start MCP Bridge
 
- ### 安装 Abaqus GUI 插件
+# 3. 连接 AI 客户端
+codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
 
- ```bash
- abaqus-mcp-pro-setup
- ```
+# 4. 开始与 Abaqus 对话
+#    "创建一个拉伸试棒模型，使用钢材属性..."
+```
 
- 或手动将 `src/abaqus_mcp_pro/gui_plugin.py` 复制到 Abaqus 插件目录（通常为 `~/abaqus_plugins/`）。
+---
 
- > 可通过设置环境变量 `ABAQUS_MCP_PLUGIN_DIR` 自定义插件安装目录。
+## 亮点
 
- ## 使用方法
+<table>
+<tr>
+<td width="33%" align="center">
+<h3>⚡ 10-50ms 延迟</h3>
+TCP socket 桥接，无文件 I/O，无轮询。
+</td>
+<td width="33%" align="center">
+<h3>🔧 23 个 MCP 工具</h3>
+模型 · 作业 · ODB · KPI · 胶囊 · 合约 · 报告 · 视口
+</td>
+<td width="33%" align="center">
+<h3>🖥️ GUI 实时可见</h3>
+几何、网格、结果在当前 Abaqus 窗口中即时更新。
+</td>
+</tr>
+<tr>
+<td align="center">
+<h3>🌐 3D 结果查看器</h3>
+一键 ODB → 浏览器交互可视化。Three.js，零依赖。
+</td>
+<td align="center">
+<h3>🩺 求解器诊断</h3>
+40+ 种错误模式自动检测并提供修复建议。
+</td>
+<td align="center">
+<h3>🔒 仅本地运行</h3>
+桥接监听 `127.0.0.1:48152`，数据不会离开你的机器。
+</td>
+</tr>
+</table>
 
- ### 1. 启动 Abaqus/CAE
+---
 
- 正常启动 Abaqus/CAE，然后激活插件：
+## 架构
 
- **Plug-ins > ABAQUS MCP Pro > Start MCP Bridge**
+<div align="center">
 
- 启动后，Abaqus 消息区会显示：
+```
+┌──────────────────┐
+│  AI 客户端       │  "创建一个钢制支架..."
+│  (Codex/Claude)  │
+└────────┬─────────┘
+         │ stdio
+         ▼
+┌──────────────────┐
+│  MCP 服务器      │  server.py
+│  (23 个工具)     │
+└────────┬─────────┘
+         │ TCP :48152
+         ▼
+┌──────────────────┐
+│  GUI 插件        │  agent.py
+│  (Abaqus 内部)   │
+└────────┬─────────┘
+         │ Abaqus Python API
+         ▼
+┌──────────────────┐
+│  Abaqus/CAE      │
+│  内核            │
+└──────────────────┘
+```
 
- ```
-     o---o
-    /   /|   < Abaqus MCP Bridge Active!
-   o---o o   Listening on 127.0.0.1:48152
-   |___|/    <<--  May your meshes converge and your residuals drop.  -->>
- ```
+</div>
 
- ### 2. 配置 MCP 客户端
+---
 
- #### Codex
+## 浏览器 3D 结果查看器
 
- 使用命令行添加：
+> **一条命令。零 npm。即时 3D。**
 
- ```bash
- codex mcp add abaqus-mcp-pro -- python路径 "server.py的绝对路径"
- ```
+```bash
+python viewer/serve_viewer.py
+# → http://localhost:8080
+```
 
- 例如：
+输入 ODB 路径，点击 **Export**，在浏览器中查看模型：
 
- ```bash
- codex mcp add abaqus-mcp-pro -- D:/ProgramData/anaconda3/python.exe "R:/100_Private/WQG/codex/ABAQUS MCP/abaqus-mcp-pro/src/abaqus_mcp_pro/server.py"
- ```
+- **鼠标旋转 / 平移 / 缩放**
+- **场变量着色** — 应力、位移、PEEQ，jet 色标 + 图例
+- **线框** 切换 · **变形** 切换 · **动画** 播放
+- **C3D4/5/6/8/10/15/20** · **S3/4/6/8** · **M3D3/4** — 全单元类型支持
 
- #### Claude Code
+<table>
+<tr>
+<td>
 
- 在 `~/.claude.json` 的 `mcpServers` 节点下添加：
+**Python 调用：**
+```python
+from abaqus_mcp_pro.export_result_mesh import export_result_mesh
+export_result_mesh("my_job.odb", "result_mesh.json")
+```
 
- ```json
- "abaqus-mcp-pro": {
-   "command": "abaqus-mcp-pro-server",
-   "env": {
-     "ABAQUS_MCP_HOST": "127.0.0.1",
-     "ABAQUS_MCP_PORT": "48152",
-     "ABAQUS_MCP_TIMEOUT": "120"
-   }
- }
- ```
+</td>
+<td>
 
- ### 3. 使用工具
+**MCP 调用：**
+```
+AI: "导出 my_job.odb 的 result_mesh"
+→ result_mesh.json 已创建
+→ 在查看器中加载
+```
 
- 连接成功后，AI 客户端即可使用全部 22 个工具：
+</td>
+</tr>
+</table>
 
- | 工具 | 说明 |
+---
+
+## 工具参考
+
+| 类别 | 工具 | 说明 |
+|------|------|------|
+| **桥接** | `ping` | 连接健康检查 + 会话状态 |
+| | `check_abaqus_connection` | 人类可读的状态报告 |
+| **代码** | `run_python` | 在 Abaqus 内核中执行任意 Python |
+| | `execute_script` | 兼容包装器（返回 stdout 文本） |
+| | `set_workdir` | 修改工作目录 |
+| **模型** | `get_model_info` | 部件、材料、分析步、载荷、边界条件 |
+| **作业** | `list_jobs` | 所有作业及其状态 |
+| | `submit_job` | 提交作业并等待完成 |
+| | `monitor_job_status` | 读取 .sta / .msg 诊断信息 |
+| | `diagnose_job` | 求解器诊断：40+ 错误模式 |
+| **ODB** | `inspect_odb` | 帧、变量、截面信息 |
+| | `get_odb_info` | 兼容包装器 |
+| | `extract_kpis` | ODB 透镜：KPI 提取 |
+| | `export_result_mesh` | 导出为 3D 查看器 JSON |
+| **胶囊** | `create_capsule` | 保存实验状态快照 |
+| | `list_capsules` | 列出已保存的胶囊 |
+| | `load_capsule` | 加载已保存的胶囊 |
+| | `delete_capsule` | 删除已保存的胶囊 |
+| | `compare_capsules` | 对比两个胶囊 |
+| **合约** | `check_physics_contracts` | 验证物理合约 |
+| **报告** | `generate_report` | 生成仿真报告（Markdown） |
+| **视口** | `capture_viewport` | 截取视口图像为 base64 |
+| | `get_viewport_image` | 兼容包装器 |
+
+---
+
+## 安装
+
+### 环境要求
+
+| 要求 | 版本 |
 |------|------|
-| \ping\ | 检查桥接连接 + 会话状态（模型、视口、PID） |
-| \check_abaqus_connection\ | 人类可读的连接状态 |
-| un_python\ | 在 Abaqus 内核中执行任意 Python 代码 |
-| \xecute_script\ | 兼容包装器，返回 stdout 文本 |
-| \set_workdir\ | 修改 Abaqus 工作目录 |
-| \get_model_info\ | 列出部件、材料、分析步、载荷、边界条件 |
-| \list_jobs\ | 列出所有作业及其状态 |
-| \submit_job\ | 提交作业并等待完成 |
-| \monitor_job_status\ | 读取 .sta/.msg 文件获取进度与诊断 |
-| \diagnose_job\ | 求解器诊断：40+ 种错误模式自动检测 |
-| \inspect_odb\ | 只读打开 ODB：帧裁剪、变量含分量信息 |
-| \get_odb_info\ | inspect_odb 的兼容包装器 |
-| \xtract_kpis\ | ODB 透镜：提取 KPI（应力、位移等） |
-| \create_capsule\ | 保存实验状态快照 |
-| \list_capsules\ | 列出所有已保存的实验胶囊 |
-| \load_capsule\ | 加载已保存的实验胶囊 |
-| \delete_capsule\ | 删除已保存的实验胶囊 |
-| \compare_capsules\ | 对比两个胶囊（模型、KPI、文件差异） |
-| \check_physics_contracts\ | 验证物理合约（范围、阈值、百分比变化） |
-| \generate_report\ | 生成仿真报告（Markdown） |
-| \capture_viewport\ | 截取视口图像为 base64（PNG/TIFF/SVG） |
-| \get_viewport_image\ | 兼容包装器，返回 data URI |
-| \check_silent_failures\ | 静默失效检测（网格、约束、接触等） |
-| \check_model_integrity\ | 快速模型完整性检查 |
-| \converge_advice\ | 收敛问题自动修复建议 |### noGUI 模式
+| Python | 3.10+ |
+| Abaqus | 2024+（内置 Python 3.10） |
+| AI 客户端 | Codex、Claude Desktop 等 |
 
- 在批处理模式下运行 Abaqus，使用 TCP 代理：
+### 安装步骤
 
- ```bash
- abaqus cae noGUI=scripts/start_abaqus_mcp_pro_agent.py
- ```
+```bash
+pip install -e .
+abaqus-mcp-pro-setup          # 安装 GUI 插件到 Abaqus
+```
 
- 或使用文件 IPC 备用通道：
+### 环境变量
 
- ```bash
- abaqus cae noGUI=scripts/start_abaqus_mcp_pro_ipc.py
- ```
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ABAQUS_MCP_HOST` | `127.0.0.1` | TCP 主机地址 |
+| `ABAQUS_MCP_PORT` | `48152` | TCP 端口 |
+| `ABAQUS_MCP_TIMEOUT` | `60` | Socket 超时（秒） |
+| `ABAQUS_MCP_MAX_MESSAGE_BYTES` | `33554432` | 最大消息大小 |
+| `ABAQUS_MCP_PLUGIN_DIR` | `~/abaqus_plugins` | 插件安装目录 |
+| `ABAQUS_MCP_HOME` | 自动检测 | 文件 IPC 工作目录 |
 
- ### CLI 诊断
+---
 
- ```bash
- # 检查与运行中 Abaqus 桥接的连通性
- abaqus-mcp-pro-check
+## 运行模式
 
- # 完整诊断
- abaqus-mcp-pro-doctor
+```bash
+# GUI 模式（主模式）— 启动 Abaqus/CAE，从 Plug-ins 菜单激活插件
 
- # 安装/更新 GUI 插件
- abaqus-mcp-pro-setup
- ```
+# noGUI 模式 — 批处理执行
+abaqus cae noGUI=scripts/start_abaqus_mcp_pro_agent.py
 
- ## 环境变量
+# 文件 IPC 备用通道
+abaqus cae noGUI=scripts/start_abaqus_mcp_pro_ipc.py
+```
 
- | 变量 | 默认值 | 说明 |
- |------|--------|------|
- | `ABAQUS_MCP_HOST` | `127.0.0.1` | TCP 桥接主机地址 |
- | `ABAQUS_MCP_PORT` | `48152` | TCP 桥接端口 |
- | `ABAQUS_MCP_TIMEOUT` | `60` | 执行超时（秒） |
- | `ABAQUS_MCP_MAX_MESSAGE_BYTES` | `33554432` | 最大消息大小 |
- | `ABAQUS_MCP_PLUGIN_DIR` | `~/abaqus_plugins` | GUI 插件安装目录 |
- | `ABAQUS_MCP_HOME` | 自动检测 | 文件 IPC 的工作目录 |
+---
 
- ## Python API
+## CLI 工具
 
- ```python
- from abaqus_mcp_pro.client import AbaqusBridgeClient
+```bash
+abaqus-mcp-pro-check     # 检查桥接连通性
+abaqus-mcp-pro-doctor    # 完整系统诊断
+abaqus-mcp-pro-setup     # 安装 / 更新 GUI 插件
+```
 
- client = AbaqusBridgeClient(timeout=60)
- result = client.execute("from abaqus import mdb; result = list(mdb.models.keys())")
- print(result['return_value'])  # ['Model-1', ...]
- ```
+---
 
- ## 示例
+## Python API
 
- 参见 `examples/` 目录中的 Abaqus Python 脚本：
+```python
+from abaqus_mcp_pro.client import AbaqusBridgeClient
 
- - `abaqus_cantilever_classic.py` — 悬臂梁静力分析
- - `abaqus_tensile_bar_classic.py` — 拉伸试棒（含颈缩）
- - `show_tensile_result_viewport.py` — 后处理可视化
+client = AbaqusBridgeClient(timeout=60)
+result = client.execute("from abaqus import mdb; result = list(mdb.models.keys())")
+print(result["return_value"])  # ["Model-1", ...]
+```
 
- ## 项目结构
+---
 
- ```
- abaqus-mcp-pro/
- +-- pyproject.toml           # 包元数据
- +-- README.md                # 英文说明
- +-- README_ZH.md             # 中文说明（本文件）
- +-- src/abaqus_mcp_pro/
- |   +-- __init__.py          # 包初始化
- |   +-- server.py            # MCP stdio 服务器（22 工具 + 13 提示 + 74 资源）
- |   +-- agent.py             # Abaqus 端 TCP socket 代理（纯标准库）
- |   +-- gui_plugin.py        # Abaqus/CAE GUI 插件（AFX 菜单）
- |   +-- file_ipc_plugin.py   # 基于文件的 IPC 备用插件
- |   +-- client.py            # CLI 工具的 TCP 客户端
- |   +-- protocol.py          # 共享的行分隔 JSON 协议
- |   +-- cli.py               # CLI：check、doctor、setup
- +-- scripts/
- |   +-- start_abaqus_mcp_pro_agent.py   # noGUI 启动器（TCP）
- |   +-- start_abaqus_mcp_pro_ipc.py     # noGUI 启动器（文件 IPC）
- |   +-- stop_mcp_agent.py           # 文件 IPC 停止信号
- +-- examples/
- |   +-- abaqus_cantilever_classic.py
- |   +-- abaqus_tensile_bar_classic.py
- |   +-- show_tensile_result_viewport.py
- +-- tests/                    # 测试目录
- ```
+## 项目结构
 
- ## 故障排查
+```
+abaqus-mcp-pro/
+├── src/abaqus_mcp_pro/
+│   ├── server.py             # MCP stdio 服务器
+│   ├── tools.py              # 23 个 MCP 工具
+│   ├── resources.py          # MCP 资源
+│   ├── prompts.py            # 13 个 MCP 提示
+│   ├── skills.py             # 74 个技能资源
+│   ├── transport.py          # Socket + 文件 IPC
+│   ├── solver_diagnosis.py   # 求解器诊断
+│   ├── odb_lens.py           # ODB 透镜：KPI 提取
+│   ├── capsule.py            # 实验状态跟踪
+│   ├── contracts.py          # 物理合约
+│   ├── report.py             # 报告生成
+│   ├── export_result_mesh.py # ODB → JSON 导出
+│   ├── agent.py              # Abaqus 端 TCP 代理
+│   ├── gui_plugin.py         # Abaqus/CAE GUI 插件
+│   ├── file_ipc_plugin.py    # 文件 IPC 备用
+│   ├── client.py             # TCP 客户端
+│   ├── protocol.py           # JSON 协议
+│   └── cli.py                # CLI 入口
+├── viewer/
+│   ├── serve_viewer.py       # 一键启动 3D 查看器
+│   ├── index.html            # 查看器界面
+│   ├── main.js               # Three.js 渲染引擎
+│   └── *.result_mesh.json    # 测试数据
+├── scripts/                  # noGUI 启动器
+├── examples/                 # 示例脚本
+├── tests/                    # 测试套件
+├── pyproject.toml
+└── README.md
+```
 
- | 问题 | 解决方案 |
- |-------|----------|
- | `WinError 10061` 连接被拒绝 | 未在 Abaqus/CAE 中开启桥接服务。请先启动 Abaqus/CAE，并在顶部菜单栏选择 **Plug-ins -> ABAQUS MCP -> Start MCP Bridge**。 |
- | 连接超时 | 先在 Abaqus 内启动插件，再启动 MCP 服务。 |
- | `Module abaqusGui can only be used...` | 通过 **Plug-ins** 菜单启动，不要用 File -> Run Script。 |
- | 模型未出现在 GUI 中 | 运行 `abaqus-mcp-pro-check`，确认 `"thread": "MainThread"`。 |
- | Codex 看不到 MCP 工具 | 运行 `codex mcp list` 检查是否已注册。如未列出，重启 Codex。 |
- | 找不到 `abaqus-mcp-pro-server` | 重新安装或运行 `abaqus-mcp-pro-doctor`。 |
+---
 
- ## 致谢
+## 故障排查
 
- 本项目整合了以下开源项目的优秀设计：
+| 症状 | 解决方案 |
+|------|----------|
+| `WinError 10061` 连接被拒绝 | 启动桥接：**Plug-ins > ABAQUS MCP Pro > Start MCP Bridge** |
+| 连接超时 | 先启动插件，再启动 MCP 服务器 |
+| `Module abaqusGui can only be used...` | 通过 **Plug-ins** 菜单启动，不要用 File > Run Script |
+| 模型未在 GUI 中出现 | `abaqus-mcp-pro-check` → 确认 `"thread": "MainThread"` |
+| Codex 看不到工具 | `codex mcp list` → 重启 Codex |
+| 找不到 `abaqus-mcp-pro-server` | 重新安装或运行 `abaqus-mcp-pro-doctor` |
 
- - [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP) — TCP socket 桥接、AST 错误诊断
- - [CAE-Agent-Hub](https://github.com/Cai-aa/CAE-Agent-Hub) — 高层工具与架构设计
- - [abaqus-mcp](https://github.com/Cai-aa/abaqus-mcp) — 文件 IPC 传输
- - [Codex_MCP_Abaqus](https://github.com/Zhangyoupeng1996/Codex_MCP_Abaqus) — noGUI 模式与示例
+---
 
- ## 许可证
+## 致谢
 
- MIT — 详见 [LICENSE](LICENSE)。
+- [Abaqus-Control-MCP](https://github.com/Whfkl/Abaqus-Control-MCP) — TCP socket 桥接、AST 错误诊断
+- [CAE-Agent-Hub](https://github.com/Cai-aa/CAE-Agent-Hub) — 高层工具与架构设计
+- [abaqus-mcp](https://github.com/Cai-aa/abaqus-mcp) — 文件 IPC 传输
+- [Codex_MCP_Abaqus](https://github.com/Zhangyoupeng1996/Codex_MCP_Abaqus) — noGUI 模式与示例
+
+---
+
+<div align="center">
+
+**MIT License** · [查看许可证](LICENSE)
+
+为 CAE 社区打造 🔬
+
+</div>
