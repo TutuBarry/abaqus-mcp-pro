@@ -38,50 +38,7 @@ The AI handles every step through MCP tools, and the model updates live in your 
   <p><em>ABAQUS MCP Pro -- AI-Native Abaqus Automation Workflow</em></p>
 </div>
 
-```mermaid
-flowchart LR
-    subgraph AI["🤖 AI 客户端"]
-        C1["Codex / Claude"]
-        C2["Cursor / Windsurf"]
-        C3["任意 MCP 客户端"]
-    end
-
-    subgraph Server["🔧 ABAQUS MCP Pro Server"]
-        direction TB
-        T1["40+ MCP 工具"]
-        T2["Skills 知识库"]
-        T3["Solver Doctor 诊断"]
-        T4["Capsule 实验追踪"]
-        T5["Physics Contracts"]
-        T6["ODB Lens 后处理"]
-        T1 ~~~ T2 ~~~ T3 ~~~ T4 ~~~ T5 ~~~ T6
-    end
-
-    subgraph Abaqus["🖥️ Abaqus / CAE"]
-        direction TB
-        A1["GUI 模式<br/>TCP Socket Bridge"]
-        A2["noGUI 模式<br/>批处理执行"]
-        A3["ODB 结果数据库"]
-        A1 --- A2 --- A3
-    end
-
-    subgraph Output["📊 输出 & 可视化"]
-        direction LR
-        O1["3D 浏览器查看器"]
-        O2["仿真报告"]
-        O3["KPI 提取"]
-        O4["视口截图"]
-    end
-
-    AI <-->|"MCP 协议"| Server
-    Server <-->|"TCP Socket<br/>10-50ms 延迟"| Abaqus
-    Abaqus --> Output
-
-    style AI fill:#1a1a2e,stroke:#e94560,color:#eee
-    style Server fill:#16213e,stroke:#0f3460,color:#eee
-    style Abaqus fill:#0f3460,stroke:#e94560,color:#eee
-    style Output fill:#1a1a2e,stroke:#533483,color:#eee
-```
+````
 
 
 ---
