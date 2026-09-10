@@ -33,6 +33,11 @@ ABAQUS MCP Pro 通过 TCP socket 桥接将 AI 助手直接连接到 Abaqus/CAE�
 
 AI 通过 MCP 工具完成每一步操作，模型在你的 Abaqus 窗口中实时更新。
 
+<div align="center">
+  <img src="docs/images/abaqus-mcp-comic.jpeg" alt="ABAQUS MCP Pro" width="800">
+  <p><em>ABAQUS MCP Pro -- AI-Native Abaqus Automation Workflow</em></p>
+</div>
+
 ```mermaid
 flowchart LR
     subgraph AI["🤖 AI 客户端"]

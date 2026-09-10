@@ -33,6 +33,11 @@ ABAQUS MCP Pro connects your AI assistant directly to Abaqus/CAE over a TCP sock
 
 The AI handles every step through MCP tools, and the model updates live in your Abaqus window.
 
+<div align="center">
+  <img src="docs/images/abaqus-mcp-comic.jpeg" alt="ABAQUS MCP Pro" width="800">
+  <p><em>ABAQUS MCP Pro -- AI-Native Abaqus Automation Workflow</em></p>
+</div>
+
 ```mermaid
 flowchart LR
     subgraph AI["🤖 AI 客户端"]
