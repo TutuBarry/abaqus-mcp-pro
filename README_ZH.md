@@ -38,8 +38,6 @@ AI 通过 MCP 工具完成每一步操作，模型在你的 Abaqus 窗口中实�
   <p><em>ABAQUS MCP Pro -- AI-Native Abaqus Automation Workflow</em></p>
 </div>
 
-````
-
 
 ---
 

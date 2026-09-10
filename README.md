@@ -38,8 +38,6 @@ The AI handles every step through MCP tools, and the model updates live in your 
   <p><em>ABAQUS MCP Pro -- AI-Native Abaqus Automation Workflow</em></p>
 </div>
 
-````
-
 
 ---
 
