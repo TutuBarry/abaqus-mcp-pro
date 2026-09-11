@@ -1,0 +1,50 @@
+{
+  "format_version": "2.0",
+  "export_time": "2026-09-10T12:00:00",
+  "model_name": "Test Cube",
+  "job_name": "test_cube",
+  "abaqus_version": "2024",
+  "deformation_scale_factor": 1,
+  "num_nodes": 8,
+  "num_elements": 12,
+  "fields": [
+    {
+      "name": "S_Mises",
+      "key": "S",
+      "component": "Mises",
+      "label": "Stress (Mises)",
+      "unit": "MPa"
+    },
+    {
+      "name": "U_Magnitude",
+      "key": "U",
+      "component": "Magnitude",
+      "label": "Displacement (Magnitude)",
+      "unit": "mm"
+    }
+  ],
+  "steps": [
+    {
+      "name": "Step-1",
+      "label": "Step-1",
+      "procedure": "Static, General"
+    }
+  ],
+  "frames": [
+    {
+      "frame": 0,
+      "time": 0,
+      "vtp_file": "samples/frame_0000.vtp"
+    },
+    {
+      "frame": 1,
+      "time": 0.5,
+      "vtp_file": "samples/frame_0001.vtp"
+    },
+    {
+      "frame": 2,
+      "time": 1,
+      "vtp_file": "samples/frame_0002.vtp"
+    }
+  ]
+}

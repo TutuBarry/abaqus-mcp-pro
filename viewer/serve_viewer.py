@@ -24,7 +24,9 @@ import urllib.parse
 from pathlib import Path
 
 VIEWER_DIR = Path(__file__).resolve().parent
-HOST = "127.0.0.1"
+STATIC_DIR = VIEWER_DIR / 'dist'
+SAMPLES_DIR = VIEWER_DIR / 'samples'
+HOST = "0.0.0.0"
 PORT = 8080
 
 # ── Embedded export script (runs inside Abaqus Python) ──
@@ -157,15 +159,313 @@ def export(odb_path, output_path, step_index, frame_step, deform_scale, fields):
     finally:
         odb.close()
 
+
+# ── VTP v2.0 Export functions ─────────────────────────────────
+
+_ELEMENT_FACES = {
+    "C3D8":  (8, [(0,1,2,3), (4,7,6,5), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]),
+    "C3D8R": (8, [(0,1,2,3), (4,7,6,5), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]),
+    "C3D4":  (4, [(0,1,2), (0,2,3), (0,3,1), (1,3,2)]),
+    "C3D10": (4, [(0,1,2), (0,2,3), (0,3,1), (1,3,2)]),
+    "C3D6":  (6, [(0,1,2), (3,4,5), (0,1,4,3), (1,2,5,4), (2,0,3,5)]),
+    "C3D15": (6, [(0,1,2), (3,4,5), (0,1,4,3), (1,2,5,4), (2,0,3,5)]),
+    "C3D20":  (20, [(0,1,3,2), (4,6,7,5), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]),
+    "C3D20R": (20, [(0,1,3,2), (4,6,7,5), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]),
+}
+
+
+def _triangulate_faces(face_nodes):
+    if len(face_nodes) == 3:
+        return [(face_nodes[0], face_nodes[1], face_nodes[2])]
+    if len(face_nodes) == 4:
+        return [(face_nodes[0], face_nodes[1], face_nodes[2]),
+                (face_nodes[0], face_nodes[2], face_nodes[3])]
+    tris = []
+    for k in range(1, len(face_nodes) - 1):
+        tris.append((face_nodes[0], face_nodes[k], face_nodes[k + 1]))
+    return tris
+
+
+def _build_vtp_xml(points, triangles, field_arrays):
+    n_pts = len(points)
+    n_polys = len(triangles)
+
+    points_list = []
+    for (x, y, z) in points:
+        points_list.append("%s %s %s" % (x, y, z))
+    points_xml = chr(10).join(points_list)
+
+    conn_list = []
+    for tri in triangles:
+        for idx in tri:
+            conn_list.append(str(idx))
+    conn_xml = " ".join(conn_list)
+
+    offsets_list = []
+    for i in range(n_polys):
+        offsets_list.append(str((i + 1) * 3))
+    offsets_xml = " ".join(offsets_list)
+
+    pd_arrays_list = []
+    for name, vals in field_arrays.items():
+        ncomp = 1
+        comp_attr = ""
+        if vals and isinstance(vals[0], (list, tuple)):
+            ncomp = len(vals[0])
+            comp_attr = ' NumberOfComponents="%d"' % ncomp
+            vec_strs = []
+            for vec in vals:
+                vec_strs.append(" ".join(str(v) for v in vec))
+            vals_xml = chr(10).join(vec_strs)
+        else:
+            s_vals = []
+            for v in vals:
+                s_vals.append(str(v))
+            vals_xml = chr(10).join(s_vals)
+        pd_arrays_list.append(
+            '        <DataArray type="Float64" Name="%s"%s>' % (name, comp_attr)
+            + chr(10)
+            + "%s" % vals_xml
+            + chr(10)
+            + "        </DataArray>"
+        )
+    pd_arrays_xml = chr(10).join(pd_arrays_list)
+
+    vtp_lines = []
+    vtp_lines.append('<?xml version="1.0"?>')
+    vtp_lines.append('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">')
+    vtp_lines.append('  <PolyData>')
+    vtp_lines.append('    <Piece NumberOfPoints="%d" NumberOfVerts="0" NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="%d">' % (n_pts, n_polys))
+    vtp_lines.append('      <PointData>')
+    vtp_lines.append(pd_arrays_xml)
+    vtp_lines.append('      </PointData>')
+    vtp_lines.append('      <Points>')
+    vtp_lines.append('        <DataArray type="Float64" Name="Points" NumberOfComponents="3">')
+    vtp_lines.append(points_xml)
+    vtp_lines.append('        </DataArray>')
+    vtp_lines.append('      </Points>')
+    vtp_lines.append('      <Polys>')
+    vtp_lines.append('        <DataArray type="Int32" Name="connectivity">')
+    vtp_lines.append(conn_xml)
+    vtp_lines.append('        </DataArray>')
+    vtp_lines.append('        <DataArray type="Int32" Name="offsets">')
+    vtp_lines.append(offsets_xml)
+    vtp_lines.append('        </DataArray>')
+    vtp_lines.append('      </Polys>')
+    vtp_lines.append('    </Piece>')
+    vtp_lines.append('  </PolyData>')
+    vtp_lines.append('</VTKFile>')
+    return chr(10).join(vtp_lines)
+
+
+def export_vtp(odb_path, output_prefix, step_index, frame_step, deform_scale, fields):
+    from odbAccess import openOdb
+
+    if fields is None:
+        fields = ["S", "U", "PEEQ", "RF"]
+
+    print("Opening ODB: %s" % odb_path)
+    odb = openOdb(path=odb_path, readOnly=True)
+
+    try:
+        steps = list(odb.steps.values())
+        if not steps:
+            raise ValueError("No steps found in ODB.")
+        if step_index < 0:
+            step_index = len(steps) + step_index
+        step = steps[max(0, min(step_index, len(steps) - 1))]
+
+        all_frames = list(step.frames)
+        if not all_frames:
+            raise ValueError("No frames found in step.")
+        selected = all_frames[::frame_step] or [all_frames[-1]]
+
+        instance = odb.rootAssembly.instances[list(odb.rootAssembly.instances.keys())[0]]
+
+        # Build nodes (1-indexed)
+        nd = {}
+        for n in instance.nodes:
+            nd[n.label] = list(n.coordinates)
+        nodes = [None]
+        max_label = max(nd.keys()) if nd else 0
+        for i in range(1, max_label + 1):
+            nodes.append(nd.get(i, [0.0, 0.0, 0.0]))
+
+        # Triangulate elements into surface triangles
+        all_tris = []
+        for elem in instance.elements:
+            conn = [n.label for n in elem.connectivity]
+            etype = elem.type.name
+            ncorners, faces = _ELEMENT_FACES.get(etype, (4, [(0,1,2,3)]))
+            for face in faces:
+                face_nodes = [conn[ln] for ln in face[:len(face)]]
+                tris = _triangulate_faces(face_nodes)
+                for tri in tris:
+                    all_tris.append(tuple(nid - 1 for nid in tri))
+
+        print("  Nodes: %d, Surface triangles: %d" % (max_label, len(all_tris)))
+
+        # Field metadata (from last frame)
+        last_frame = all_frames[-1]
+        fos = last_frame.fieldOutputs
+        field_meta = []
+        for fn in fields:
+            if fn in fos:
+                fo = fos[fn]
+                label = fo.description or fn
+                field_meta.append({
+                    "name": fn, "key": fn, "component": "",
+                    "label": label, "unit": "",
+                })
+
+        # Process each frame
+        vtp_files = []
+        frames_index = []
+        for fi, frame in enumerate(selected):
+            print("  Frame %d/%d (t=%s)..." % (fi, len(selected)-1, frame.frameValue))
+            fouts = frame.fieldOutputs
+
+            # Read node values for each field
+            point_field_vals = {}
+            for fname in fields:
+                if fname not in fouts:
+                    continue
+                fo = fouts[fname]
+                val_map = {}
+                for val in fo.values:
+                    nid = val.nodeLabel
+                    if hasattr(val, 'mises'):
+                        val_map[nid] = val.mises
+                    elif hasattr(val, 'magnitude'):
+                        val_map[nid] = val.magnitude
+                    elif hasattr(val, 'data'):
+                        d = val.data
+                        if isinstance(d, float):
+                            val_map[nid] = d
+                        elif hasattr(d, '__len__'):
+                            if len(d) == 3:
+                                val_map[nid] = (float(d[0]), float(d[1]), float(d[2]))
+                            else:
+                                val_map[nid] = float(d[0])
+                    else:
+                        val_map[nid] = 0.0
+                arr = []
+                for i in range(1, max_label + 1):
+                    arr.append(val_map.get(i, 0.0))
+                point_field_vals[fname] = arr
+
+            # Read displacement
+            disp_arr = None
+            if "U" in fouts:
+                ufo = fouts["U"]
+                disp = [None]
+                for i in range(1, max_label + 1):
+                    disp.append([0.0, 0.0, 0.0])
+                for val in ufo.values:
+                    nid = val.nodeLabel
+                    d = val.data
+                    disp[nid] = [float(d[0]), float(d[1]), float(d[2])]
+                disp_arr = disp[1:]
+
+            # Build deformed points
+            coords = [nodes[i] for i in range(1, max_label + 1)]
+            pts = []
+            for j in range(max_label):
+                x, y, z = coords[j]
+                if disp_arr and deform_scale > 0:
+                    dx, dy, dz = disp_arr[j]
+                    s = deform_scale
+                    x += dx * s
+                    y += dy * s
+                    z += dz * s
+                pts.append((x, y, z))
+
+            # Compact vertex optimization (only vertices referenced by triangles)
+            vert_set = set()
+            for (a, b, c) in all_tris:
+                vert_set.add(a)
+                vert_set.add(b)
+                vert_set.add(c)
+
+            vert_map = {}
+            compact_pts = []
+            for vi in sorted(vert_set):
+                vert_map[vi] = len(compact_pts)
+                compact_pts.append(pts[vi])
+
+            compact_tris = []
+            for (a, b, c) in all_tris:
+                compact_tris.append((vert_map[a], vert_map[b], vert_map[c]))
+
+            compact_field_arrays = {}
+            for fname, arr in point_field_vals.items():
+                compact_arr = [arr[vi] for vi in sorted(vert_set)]
+                compact_field_arrays[fname] = compact_arr
+            if disp_arr:
+                compact_field_arrays["U"] = [disp_arr[vi] for vi in sorted(vert_set)]
+
+            # Write VTP file
+            vtp_out = "%s_frame_%04d.vtp" % (output_prefix, fi)
+            vtp_xml = _build_vtp_xml(compact_pts, compact_tris, compact_field_arrays)
+            with open(vtp_out, "w") as f:
+                f.write(vtp_xml)
+
+            vtp_files.append(vtp_out)
+            frames_index.append({
+                "frame": fi,
+                "time": frame.frameValue,
+                "vtp_file": os.path.basename(vtp_out),
+            })
+
+        # Write index JSON
+        index = {
+            "format_version": "2.0",
+            "export_time": datetime.now().isoformat(),
+            "model_name": odb.name or os.path.basename(odb_path),
+            "job_name": os.path.splitext(os.path.basename(odb_path))[0],
+            "abaqus_version": str(odb.odbVersion) if hasattr(odb, 'odbVersion') else "",
+            "deformation_scale_factor": deform_scale,
+            "num_nodes": max_label,
+            "num_elements": len(all_tris),
+            "fields": field_meta,
+            "steps": [{"name": step.name, "label": step.name, "procedure": step.procedure}],
+            "frames": frames_index,
+        }
+
+        index_path = "%s_v2.json" % output_prefix
+        with open(index_path, "w") as f:
+            json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
+
+        print("OK:" + index_path)
+        print("NODES:" + str(max_label))
+        print("ELEMS:" + str(len(all_tris)))
+        print("FRAMES:" + str(len(selected)))
+        return index_path
+
+    finally:
+        odb.close()
+
+
 if __name__ == "__main__":
-    export(
-        odb_path=sys.argv[1],
-        output_path=sys.argv[2],
-        step_index=int(sys.argv[3]) if len(sys.argv) > 3 else -1,
-        frame_step=int(sys.argv[4]) if len(sys.argv) > 4 else 1,
-        deform_scale=float(sys.argv[5]) if len(sys.argv) > 5 else 1.0,
-        fields=["S", "U", "PEEQ", "RF"],
-    )
+    export_v2 = len(sys.argv) > 6 and sys.argv[6].lower() in ("true", "1", "yes")
+    if export_v2:
+        export_vtp(
+            odb_path=sys.argv[1],
+            output_prefix=os.path.splitext(sys.argv[2])[0],
+            step_index=int(sys.argv[3]) if len(sys.argv) > 3 else -1,
+            frame_step=int(sys.argv[4]) if len(sys.argv) > 4 else 1,
+            deform_scale=float(sys.argv[5]) if len(sys.argv) > 5 else 1.0,
+            fields=["S", "U", "PEEQ", "RF"],
+        )
+    else:
+        export(
+            odb_path=sys.argv[1],
+            output_path=sys.argv[2],
+            step_index=int(sys.argv[3]) if len(sys.argv) > 3 else -1,
+            frame_step=int(sys.argv[4]) if len(sys.argv) > 4 else 1,
+            deform_scale=float(sys.argv[5]) if len(sys.argv) > 5 else 1.0,
+            fields=["S", "U", "PEEQ", "RF"],
+        )
 '''
 
 
@@ -173,7 +473,23 @@ class ViewerHandler(http.server.SimpleHTTPRequestHandler):
     """Serves static files + POST /api/export."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(VIEWER_DIR), **kwargs)
+        super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
+
+    def translate_path(self, path):
+        # Try static dir first, then fall back to viewer root
+        import posixpath
+        base = super().translate_path(path)
+        if os.path.exists(base):
+            return base
+        # Fallback to samples dir
+        sample_path = str(SAMPLES_DIR / posixpath.basename(path))
+        if os.path.exists(sample_path):
+            return sample_path
+        # Fallback to viewer root
+        viewer_path = str(VIEWER_DIR / posixpath.basename(path))
+        if os.path.exists(viewer_path):
+            return viewer_path
+        return base
 
     def log_message(self, format, *args):
         print(f"[{self.address_string()}] {format % args}", flush=True)
@@ -204,10 +520,14 @@ class ViewerHandler(http.server.SimpleHTTPRequestHandler):
         step_index = data.get("step_index", -1)
         frame_step = data.get("frame_step", 1)
         deform_scale = data.get("deformation_scale", 1.0)
+        export_v2 = data.get("export_v2", False)
 
         # Output next to ODB or in temp
         base = os.path.splitext(odb_path)[0]
-        output_path = base + ".result_mesh.json"
+        if export_v2:
+            output_path = base  # prefix for VTP files and index JSON
+        else:
+            output_path = base + ".result_mesh.json"
 
         # Write export script to temp file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
@@ -220,6 +540,7 @@ class ViewerHandler(http.server.SimpleHTTPRequestHandler):
                 abaqus_cmd, "python", script_path,
                 odb_path, output_path,
                 str(step_index), str(frame_step), str(deform_scale),
+                str(export_v2).lower(),
             ]
             print(f"[export] Running: {' '.join(cmd)}", flush=True)
             proc = subprocess.run(
@@ -255,6 +576,7 @@ class ViewerHandler(http.server.SimpleHTTPRequestHandler):
             self._json_response({
                 "ok": True,
                 "output_path": output_path,
+                "format_version": "2.0" if export_v2 else "1.0",
                 "node_count": node_count,
                 "elem_count": elem_count,
                 "frame_count": frame_count,

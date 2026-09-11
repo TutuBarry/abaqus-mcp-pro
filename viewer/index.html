@@ -1,138 +1,181 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ABAQUS MCP Pro - 3D Result Viewer</title>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; overflow: hidden; height: 100vh; }
-  #app { display: flex; height: 100vh; }
-
-  /* Sidebar */
-  #sidebar { width: 280px; min-width: 280px; background: #16213e; display: flex; flex-direction: column; border-right: 1px solid #0f3460; }
-  #sidebar-header { padding: 16px; border-bottom: 1px solid #0f3460; }
-  #sidebar-header h2 { font-size: 15px; font-weight: 600; color: #e94560; letter-spacing: 0.5px; }
-  #sidebar-header .subtitle { font-size: 11px; color: #888; margin-top: 2px; }
-  #file-input-area { padding: 12px 16px; border-bottom: 1px solid #0f3460; }
-  #file-input-area label { display: block; font-size: 11px; color: #888; margin-bottom: 6px; }
-  #file-input { width: 100%; padding: 8px; background: #0f3460; border: 1px solid #1a1a4e; border-radius: 4px; color: #ccc; font-size: 12px; cursor: pointer; }
-  #file-input::-webkit-file-upload-button { background: #e94560; border: none; color: white; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-right: 8px; }
-  #odb-export-area { padding: 12px 16px; border-bottom: 1px solid #0f3460; }
-  #odb-export-area label { display: block; font-size: 11px; color: #888; margin-bottom: 6px; }
-  #odb-path { width: 100%; padding: 8px; background: #0f3460; border: 1px solid #1a1a4e; border-radius: 4px; color: #ccc; font-size: 12px; }
-  #odb-path::placeholder { color: #555; }
-  #export-btn { width: 100%; margin-top: 8px; padding: 8px; background: #e94560; border: none; border-radius: 4px; color: white; font-size: 12px; cursor: pointer; font-weight: 600; transition: background 0.15s; }
-  #export-btn:hover { background: #d63850; }
-  #export-btn:disabled { background: #555; cursor: not-allowed; }
-  #export-status { margin-top: 6px; font-size: 11px; color: #888; min-height: 16px; }
-  #export-status.success { color: #4caf50; }
-  #export-status.error { color: #e94560; }
-  #tree { flex: 1; overflow-y: auto; padding: 8px 0; }
-  .tree-item { padding: 5px 16px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #aaa; transition: background 0.15s; }
-  .tree-item:hover { background: #0f3460; }
-  .tree-item.active { background: #e94560; color: white; }
-  .tree-item .icon { font-size: 14px; width: 18px; text-align: center; }
-  .tree-section { padding: 8px 16px 3px; font-size: 10px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.8px; }
-
-  /* Main viewport */
-  #viewport { flex: 1; position: relative; }
-  #viewport canvas { display: block; }
-
-  /* Toolbar */
-  #toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 10; }
-  #toolbar button { background: #16213e; border: 1px solid #0f3460; color: #ccc; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; transition: all 0.15s; }
-  #toolbar button:hover { background: #0f3460; border-color: #e94560; }
-  #toolbar button.active { background: #e94560; border-color: #e94560; color: white; }
-
-  /* Legend */
-  #legend { position: absolute; bottom: 24px; right: 24px; background: #16213ebb; backdrop-filter: blur(8px); border: 1px solid #0f3460; border-radius: 6px; padding: 12px 14px; z-index: 10; min-width: 180px; }
-  #legend-title { font-size: 11px; font-weight: 600; margin-bottom: 8px; color: #ccc; }
-  #legend-gradient { height: 14px; border-radius: 3px; margin-bottom: 4px; }
-  #legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #888; }
-
-  /* Info overlay */
-  #info { position: absolute; top: 12px; right: 12px; background: #16213ebb; backdrop-filter: blur(8px); border: 1px solid #0f3460; border-radius: 6px; padding: 10px 14px; z-index: 10; font-size: 11px; }
-  #info .val { color: #e94560; font-weight: 600; }
-
-  /* Animation bar */
-  #anim-bar { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: #16213ebb; backdrop-filter: blur(8px); border: 1px solid #0f3460; border-radius: 6px; padding: 8px 16px; z-index: 10; display: flex; align-items: center; gap: 10px; }
-  #anim-bar.hidden { display: none; }
-  #anim-bar button { background: none; border: 1px solid #0f3460; color: #ccc; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
-  #anim-bar button:hover { background: #0f3460; }
-  #anim-bar input[type=range] { width: 160px; accent-color: #e94560; }
-  #anim-bar .frame-label { font-size: 11px; color: #888; min-width: 50px; text-align: center; }
-
-  /* Drop zone */
-  #drop-zone { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 5; pointer-events: none; }
-  #drop-zone .msg { background: #16213ecc; border: 2px dashed #0f3460; border-radius: 12px; padding: 32px 48px; text-align: center; color: #888; font-size: 14px; }
-  #drop-zone .msg .icon { font-size: 36px; margin-bottom: 8px; }
-  #drop-zone.hidden { display: none; }
-</style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Abaqus MCP Pro - 3D Result Viewer</title>
 </head>
 <body>
 <div id="app">
-  <div id="sidebar">
-    <div id="sidebar-header">
-      <h2>ABAQUS MCP Pro</h2>
-      <div class="subtitle">3D Result Viewer</div>
-    </div>
-    <div id="file-input-area">
-      <label>Load result_mesh.json</label>
-      <input type="file" id="file-input" accept=".json">
-    </div>
-    <div id="odb-export-area">
-      <label>Or export from ODB (requires Abaqus)</label>
-      <input type="text" id="odb-path" placeholder="e.g. C:\jobs\my_job.odb">
-      <button id="export-btn">Export from ODB</button>
-      <div id="export-status"></div>
-      <div id="load-exported" style="display:none; margin-top:6px;"><button id="load-exported-btn" style="width:100%;padding:6px;background:#0f3460;border:1px solid #1a1a4e;border-radius:4px;color:#ccc;font-size:11px;cursor:pointer;">Load exported JSON</button></div>
-    </div>
-    <div id="tree"></div>
-  </div>
-  <div id="viewport">
-    <div id="drop-zone">
-      <div class="msg">
-        <div class="icon">📂</div>
-        <div>Drop result_mesh.json here<br>or use the sidebar to load a file</div>
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <header id="sidebar-header">
+      <button id="sidebar-toggle" class="icon-btn" title="Toggle sidebar">&#9664;</button>
+      <div class="header-content">
+        <h2>Abaqus MCP Pro</h2>
+        <div class="subtitle">3D Result Viewer</div>
+      </div>
+    </header>
+
+    <!-- File / Export Section -->
+    <div class="sidebar-section">
+      <div class="section-header" data-toggle="file-section-content">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Data
+      </div>
+      <div id="file-section-content" class="section-content">
+        <label class="input-label">Load model.json</label>
+        <label class="file-drop">
+          <input type="file" id="file-input" accept=".json" />
+          <span class="file-drop-text">Choose file...</span>
+        </label>
+        <div class="separator"><span>or</span></div>
+        <label class="input-label">Export from ODB</label>
+        <div class="input-row">
+          <input type="text" id="odb-path" placeholder="e.g. C:\jobs\my_job.odb" />
+        </div>
+        <button id="export-btn" class="btn btn-primary">Export from ODB</button>
+        <div class="control-group" id="export-options">
+          <div class="control-row">
+            <span class="control-label">Format</span>
+            <select id="export-format">
+              <option value="v2">VTP 轻量化</option>
+              <option value="v1">JSON 兼容</option>
+            </select>
+          </div>
+          <div class="control-row">
+           <span class="control-label">Decimate</span>
+            <input type="range" id="decimate-ratio" min="0.05" max="1.0" step="0.05" value="1.0" />
+            <span id="decimate-label" class="control-value">1.0</span>
+          </div>
+          <div class="control-row">
+            <span class="control-label">Quantize</span>
+            <select id="quantize-bits">
+              <option value="32">32-bit</option>
+              <option value="16">16-bit</option>
+              <option value="12">12-bit</option>
+              <option value="8">8-bit</option>
+            </select>
+          </div>
+        </div>
+        <div id="export-progress-container">
+          <div id="export-progress-bar">0%</div>
+        </div>
+        <div id="export-status"></div>
       </div>
     </div>
+
+    <!-- Tree Navigation -->
+    <nav id="tree"></nav>
+  </aside>
+
+  <!-- Viewport -->
+  <main id="viewport">
+    <div id="drop-zone">
+      <div class="msg">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div>Drop model.json here<br /><span class="sub">or use the sidebar</span></div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
     <div id="toolbar">
-      <button id="btn-wireframe" title="Toggle wireframe">Wireframe</button>
-      <button id="btn-deformed" title="Toggle deformed shape">Deformed</button>
-      <button id="btn-reset" title="Reset view">Reset</button>
-      <button id="btn-top" title="Top view">Top</button>
-      <button id="btn-front" title="Front view">Front</button>
-      <button id="btn-right" title="Right view">Right</button>
+      <div class="toolbar-group" title="View">
+        <button id="btn-reset" class="tool-btn" title="Fit view (R)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-3-3-3H3"/><path d="M3 12h4l3 3-3 3H3"/><path d="M9 12h12"/></svg>
+        </button>
+        <button id="btn-top" class="tool-btn" title="Top view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>
+        </button>
+        <button id="btn-front" class="tool-btn" title="Front view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        </button>
+        <button id="btn-right" class="tool-btn" title="Right view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="16" y1="2" x2="16" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group" title="Display">
+        <button id="btn-wireframe" class="tool-btn" title="Toggle wireframe (W)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+        </button>
+        <button id="btn-deformed" class="tool-btn active" title="Toggle deformed shape (D)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19C8 14 10 10 14 10"/><path d="M14 10C18 10 20 14 21 16"/><path d="M14 10L14 4"/><path d="M14 4L17 7"/><path d="M14 4L11 7"/></svg>
+        </button>
+        <div class="tool-slider">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="4"/><polyline points="6 14 12 20 18 14"/></svg>
+          <input type="range" id="deform-scale" min="0" max="5" step="0.1" value="1.0" title="Deformation scale" />
+          <span id="deform-scale-val">1.0</span>
+        </div>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group" title="Tools">
+        <button id="btn-clip" class="tool-btn" title="Toggle clipping plane">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="22" x2="12" y2="15.5"/><line x1="22" y1="8.5" x2="12" y2="15.5"/><line x1="2" y1="8.5" x2="12" y2="15.5"/></svg>
+        </button>
+        <div id="clip-controls" class="tool-slider-group hidden">
+          <select id="clip-dir">
+            <option value="-z">-Z</option>
+            <option value="z">+Z</option>
+            <option value="x">+X</option>
+            <option value="-x">-X</option>
+            <option value="y">+Y</option>
+            <option value="-y">-Y</option>
+          </select>
+          <input type="range" id="clip-slider" min="-1" max="1" step="0.01" value="0" title="Clip position" />
+        </div>
+        <button id="btn-measure" class="tool-btn" title="Toggle measurement (M)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M21 3l-18 18"/><line x1="11" y1="3" x2="11" y2="7"/><line x1="17" y1="3" x2="17" y2="7"/><line x1="3" y1="11" x2="7" y2="11"/><line x1="3" y1="17" x2="7" y2="17"/></svg>
+        </button>
+        <button id="btn-screenshot" class="tool-btn" title="Save screenshot (S)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group" title="Coloring" style="gap:6px;">
+        <select id="field-select" title="Color by field"></select>
+        <select id="colormap-select" title="Color map">
+          <option value="jet">Jet</option>
+          <option value="coolwarm">Cool-Warm</option>
+          <option value="rainbow">Rainbow</option>
+          <option value="greyscale">Greyscale</option>
+          <option value="inferno">Inferno</option>
+          <option value="viridis">Viridis</option>
+        </select>
+      </div>
     </div>
-    <div id="legend">
-      <div id="legend-title">Mises Stress (MPa)</div>
-      <div id="legend-gradient"></div>
-      <div id="legend-labels"><span id="legend-min">0</span><span id="legend-max">0</span></div>
-    </div>
+
+    <!-- Info Panel -->
     <div id="info">
-      <div>Nodes: <span class="val" id="info-nodes">-</span></div>
-      <div>Elements: <span class="val" id="info-elems">-</span></div>
-      <div>Frames: <span class="val" id="info-frames">-</span></div>
+      <div class="info-row"><span class="info-label">Nodes</span><span class="info-value" id="info-nodes">-</span></div>
+      <div class="info-row"><span class="info-label">Elements</span><span class="info-value" id="info-elems">-</span></div>
+      <div class="info-row"><span class="info-label">Frames</span><span class="info-value" id="info-frames">-</span></div>
     </div>
+
+    <!-- Legend -->
+    <div id="legend">
+      <div id="legend-title">Field</div>
+      <canvas id="legend-canvas" width="200" height="16"></canvas>
+      <div id="legend-labels">
+        <span id="legend-min">0</span>
+        <span id="legend-max">0</span>
+      </div>
+    </div>
+
+    <!-- Measurement Result -->
+    <div id="measure-result" class="hidden"></div>
+
+    <!-- Animation Bar -->
     <div id="anim-bar" class="hidden">
-      <button id="btn-prev">◀◀</button>
-      <button id="btn-play">▶</button>
-      <button id="btn-next">▶▶</button>
-      <input type="range" id="frame-slider" min="0" max="0" value="0" step="1">
-      <span class="frame-label" id="frame-label">0 / 0</span>
-      <span style="font-size:10px;color:#888;" id="frame-time">t=0.00</span>
+      <button id="btn-prev" class="anim-btn" title="First frame">&#9206;</button>
+      <button id="btn-play" class="anim-btn" title="Play/Pause (Space)">&#9654;</button>
+      <button id="btn-next" class="anim-btn" title="Last frame">&#9197;</button>
+      <input type="range" id="frame-slider" min="0" max="0" value="0" step="1" />
+      <span id="frame-label" class="frame-label">0 / 0</span>
+      <span id="frame-time"></span>
     </div>
-  </div>
+  </main>
 </div>
-<script type="module" src="main.js"></script>
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
