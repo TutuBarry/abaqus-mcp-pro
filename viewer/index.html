@@ -1,181 +1,327 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Abaqus MCP Pro - 3D Result Viewer</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABAQUS MCP Pro — 轻量化 3D 结果查看器</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%274%27 fill=%27%23e94560%27/><text x=%2716%27 y=%2723%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27sans-serif%27 font-weight=%27bold%27>A</text></svg>">
 </head>
 <body>
 <div id="app">
-  <!-- Sidebar -->
-  <aside id="sidebar">
-    <header id="sidebar-header">
-      <button id="sidebar-toggle" class="icon-btn" title="Toggle sidebar">&#9664;</button>
-      <div class="header-content">
-        <h2>Abaqus MCP Pro</h2>
-        <div class="subtitle">3D Result Viewer</div>
-      </div>
-    </header>
 
-    <!-- File / Export Section -->
-    <div class="sidebar-section">
-      <div class="section-header" data-toggle="file-section-content">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Data
+  <!-- ═══ Welcome Overlay ═══ -->
+  <div id="welcome" class="welcome-overlay">
+    <div class="welcome-card">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="12" fill="#e94560"/><text x="32" y="44" text-anchor="middle" fill="white" font-size="28" font-weight="bold" font-family="sans-serif">A</text></svg>
       </div>
-      <div id="file-section-content" class="section-content">
-        <label class="input-label">Load model.json</label>
-        <label class="file-drop">
-          <input type="file" id="file-input" accept=".json" />
-          <span class="file-drop-text">Choose file...</span>
-        </label>
-        <div class="separator"><span>or</span></div>
-        <label class="input-label">Export from ODB</label>
-        <div class="input-row">
-          <input type="text" id="odb-path" placeholder="e.g. C:\jobs\my_job.odb" />
-        </div>
-        <button id="export-btn" class="btn btn-primary">Export from ODB</button>
-        <div class="control-group" id="export-options">
-          <div class="control-row">
-            <span class="control-label">Format</span>
-            <select id="export-format">
-              <option value="v2">VTP 轻量化</option>
-              <option value="v1">JSON 兼容</option>
-            </select>
-          </div>
-          <div class="control-row">
-           <span class="control-label">Decimate</span>
-            <input type="range" id="decimate-ratio" min="0.05" max="1.0" step="0.05" value="1.0" />
-            <span id="decimate-label" class="control-value">1.0</span>
-          </div>
-          <div class="control-row">
-            <span class="control-label">Quantize</span>
-            <select id="quantize-bits">
-              <option value="32">32-bit</option>
-              <option value="16">16-bit</option>
-              <option value="12">12-bit</option>
-              <option value="8">8-bit</option>
-            </select>
-          </div>
-        </div>
-        <div id="export-progress-container">
-          <div id="export-progress-bar">0%</div>
-        </div>
-        <div id="export-status"></div>
+      <h1 class="welcome-title">ABAQUS MCP Pro</h1>
+      <p class="welcome-sub">轻量化 3D 仿真结果查看器</p>
+      <div class="welcome-actions">
+        <button class="p-btn p-btn-primary" id="welcome-load-sample">加载示例模型</button>
+        <button class="p-btn" id="welcome-open-file">打开文件</button>
+      </div>
+      <div class="welcome-hints">
+        <span>拖放 .vtp / .vtu / .json 文件到窗口</span>
+        <span>支持 ODB 直连导出 (需 Abaqus)</span>
       </div>
     </div>
+  </div>
 
-    <!-- Tree Navigation -->
-    <nav id="tree"></nav>
-  </aside>
-
-  <!-- Viewport -->
-  <main id="viewport">
-    <div id="drop-zone">
-      <div class="msg">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <div>Drop model.json here<br /><span class="sub">or use the sidebar</span></div>
+  <!-- ═══ Top Bar ═══ -->
+  <header id="topbar">
+    <div class="logo-area">
+      <div class="logo-icon">A</div>
+      <div>
+        <div class="logo-text">ABAQUS MCP Pro</div>
+        <div class="logo-sub">3D Viewer</div>
       </div>
     </div>
-
-    <!-- Toolbar -->
-    <div id="toolbar">
-      <div class="toolbar-group" title="View">
-        <button id="btn-reset" class="tool-btn" title="Fit view (R)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-3-3-3H3"/><path d="M3 12h4l3 3-3 3H3"/><path d="M9 12h12"/></svg>
-        </button>
-        <button id="btn-top" class="tool-btn" title="Top view">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>
-        </button>
-        <button id="btn-front" class="tool-btn" title="Front view">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-        </button>
-        <button id="btn-right" class="tool-btn" title="Right view">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="16" y1="2" x2="16" y2="22"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="16" x2="22" y2="16"/></svg>
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group" title="Display">
-        <button id="btn-wireframe" class="tool-btn" title="Toggle wireframe (W)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
-        </button>
-        <button id="btn-deformed" class="tool-btn active" title="Toggle deformed shape (D)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19C8 14 10 10 14 10"/><path d="M14 10C18 10 20 14 21 16"/><path d="M14 10L14 4"/><path d="M14 4L17 7"/><path d="M14 4L11 7"/></svg>
-        </button>
-        <div class="tool-slider">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="4"/><polyline points="6 14 12 20 18 14"/></svg>
-          <input type="range" id="deform-scale" min="0" max="5" step="0.1" value="1.0" title="Deformation scale" />
-          <span id="deform-scale-val">1.0</span>
-        </div>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group" title="Tools">
-        <button id="btn-clip" class="tool-btn" title="Toggle clipping plane">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="22" x2="12" y2="15.5"/><line x1="22" y1="8.5" x2="12" y2="15.5"/><line x1="2" y1="8.5" x2="12" y2="15.5"/></svg>
-        </button>
-        <div id="clip-controls" class="tool-slider-group hidden">
-          <select id="clip-dir">
-            <option value="-z">-Z</option>
-            <option value="z">+Z</option>
-            <option value="x">+X</option>
-            <option value="-x">-X</option>
-            <option value="y">+Y</option>
-            <option value="-y">-Y</option>
-          </select>
-          <input type="range" id="clip-slider" min="-1" max="1" step="0.01" value="0" title="Clip position" />
-        </div>
-        <button id="btn-measure" class="tool-btn" title="Toggle measurement (M)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M21 3l-18 18"/><line x1="11" y1="3" x2="11" y2="7"/><line x1="17" y1="3" x2="17" y2="7"/><line x1="3" y1="11" x2="7" y2="11"/><line x1="3" y1="17" x2="7" y2="17"/></svg>
-        </button>
-        <button id="btn-screenshot" class="tool-btn" title="Save screenshot (S)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group" title="Coloring" style="gap:6px;">
-        <select id="field-select" title="Color by field"></select>
-        <select id="colormap-select" title="Color map">
+    <div class="topbar-center">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="file-badge" id="file-badge"></span>
+    </div>
+    <div class="topbar-right">
+      <div class="colormap-picker">
+        <label class="cm-label">Colormap</label>
+        <select id="colormap-select">
           <option value="jet">Jet</option>
           <option value="coolwarm">Cool-Warm</option>
           <option value="rainbow">Rainbow</option>
-          <option value="greyscale">Greyscale</option>
-          <option value="inferno">Inferno</option>
           <option value="viridis">Viridis</option>
+          <option value="inferno">Inferno</option>
+          <option value="greyscale">Greyscale</option>
         </select>
       </div>
+      <button class="tb-btn" id="topbar-fullscreen" title="全屏 (F11)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
     </div>
+  </header>
 
-    <!-- Info Panel -->
-    <div id="info">
-      <div class="info-row"><span class="info-label">Nodes</span><span class="info-value" id="info-nodes">-</span></div>
-      <div class="info-row"><span class="info-label">Elements</span><span class="info-value" id="info-elems">-</span></div>
-      <div class="info-row"><span class="info-label">Frames</span><span class="info-value" id="info-frames">-</span></div>
-    </div>
+  <!-- ═══ Main ═══ -->
+  <div id="main">
 
-    <!-- Legend -->
-    <div id="legend">
-      <div id="legend-title">Field</div>
-      <canvas id="legend-canvas" width="200" height="16"></canvas>
-      <div id="legend-labels">
-        <span id="legend-min">0</span>
-        <span id="legend-max">0</span>
+    <!-- ─── Left Icon Bar ─── -->
+    <nav id="leftbar">
+      <button class="leftbar-btn" id="lb-file" title="加载文件">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </button>
+      <button class="leftbar-btn" id="lb-odb" title="ODB 导出">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="leftbar-btn" id="lb-settings" title="显示设置 (D)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="leftbar-btn" id="lb-fields" title="场变量">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      </button>
+      <button class="leftbar-btn" id="lb-measure" title="测量工具 (M)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21l4-4m0 0l7-7m-7 7l-4-4m15 1l-4 4m0 0l-7-7m7 7l4 4"/></svg>
+      </button>
+      <div class="leftbar-spacer"></div>
+      <button class="leftbar-btn" id="lb-screenshot" title="截图 (C)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <button class="leftbar-btn" id="lb-help" title="帮助 (?)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+    </nav>
+
+    <!-- ─── Sidebar ─── -->
+    <aside id="sidebar" class="">
+      <div id="sidebar-inner">
+        <div id="sidebar-header">
+          <h3 id="sidebar-title">显示设置</h3>
+          <button id="sidebar-close" title="关闭侧栏">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="sidebar-scroll">
+
+          <!-- ── Panel: File ── -->
+          <div class="panel-section" id="panel-file">
+            <div class="panel-header" data-panel="file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              加载文件
+            </div>
+            <div class="panel-body" id="panel-body-file" style="display:none">
+              <div class="panel-label">拖放文件或点击选择</div>
+              <input type="file" id="file-input" accept=".json,.vtp,.vtu" class="p-input">
+              <div class="panel-hint">支持 result_mesh.json / .vtp / .vtu 格式</div>
+            </div>
+          </div>
+
+          <!-- ── Panel: ODB Export ── -->
+          <div class="panel-section" id="panel-odb">
+            <div class="panel-header" data-panel="odb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              从 ODB 导出
+            </div>
+            <div class="panel-body" id="panel-body-odb" style="display:none">
+              <div class="panel-label">ODB 文件路径</div>
+              <div class="p-row">
+                <input type="text" id="odb-path" class="p-input" placeholder="C:\jobs\my_job.odb">
+              </div>
+              <div class="p-row">
+                <select id="export-format" class="p-select">
+                  <option value="v2.0">VTP (轻量, 推荐)</option>
+                  <option value="v1.0">JSON (兼容)</option>
+                </select>
+                <button id="export-btn" class="p-btn p-btn-primary p-btn-sm">导出</button>
+              </div>
+              <div id="export-status"></div>
+              <div class="export-progress hidden" id="export-progress-container">
+                <div class="export-progress-bar" id="export-progress-bar"></div>
+              </div>
+              <div id="load-exported" class="hidden p-gap">
+                <button id="load-exported-btn" class="p-btn p-btn-block p-btn-sm">加载已导出</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Panel: Display ── -->
+          <div class="panel-section" id="panel-display">
+            <div class="panel-header" data-panel="display">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              显示选项
+            </div>
+            <div class="panel-body" id="panel-body-display">
+              <div class="ctrl-group">
+                <button class="ctrl-btn" id="btn-wireframe" title="切换线框 (W)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                  线框
+                </button>
+                <button class="ctrl-btn" id="btn-deformed" title="切换变形 (D)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                  变形
+                </button>
+                <button class="ctrl-btn" id="btn-clip" title="切换剖切">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L22 8.5 L22 15.5 L12 22 L2 15.5 L2 8.5 Z"/><line x1="12" y1="22" x2="12" y2="15"/></svg>
+                  剖切
+                </button>
+              </div>
+              <div class="p-gap">
+                <div class="panel-label">变形比例</div>
+                <div class="p-row">
+                  <input type="range" id="deform-scale" min="0.1" max="50" step="0.1" value="1.0" style="flex:1">
+                  <span id="deform-scale-val" class="mono-val">1.0</span>
+                </div>
+              </div>
+              <div class="p-gap">
+                <div class="panel-label">不透明度</div>
+                <div class="p-row">
+                  <input type="range" id="opacity-slider" min="0.1" max="1" step="0.05" value="1.0" style="flex:1">
+                  <span id="opacity-val" class="mono-val">1.0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Panel: Fields ── -->
+          <div class="panel-section" id="panel-fields">
+            <div class="panel-header" data-panel="fields">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              场变量
+            </div>
+            <div class="panel-body" id="panel-body-fields" style="display:none">
+              <nav id="tree"></nav>
+            </div>
+          </div>
+
+          <!-- ── Panel: Measure ── -->
+          <div class="panel-section" id="panel-measure">
+            <div class="panel-header" data-panel="measure">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21l4-4m0 0l7-7m-7 7l-4-4m15 1l-4 4m0 0l-7-7m7 7l4 4"/></svg>
+              测量工具
+            </div>
+            <div class="panel-body" id="panel-body-measure" style="display:none">
+              <div class="ctrl-group">
+                <button class="ctrl-btn active" id="meas-mode-distance" data-mode="distance">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="4"/><line x1="2" y1="4" x2="22" y2="4"/></svg>
+                  距离
+                </button>
+                <button class="ctrl-btn" id="meas-mode-angle" data-mode="angle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L12 12 L20 20"/><circle cx="12" cy="12" r="10"/></svg>
+                  角度
+                </button>
+              </div>
+              <div class="p-gap">
+                <div id="measure-status" class="panel-hint">点击模型表面取点测量</div>
+              </div>
+              <div class="p-gap">
+                <button id="meas-clear" class="p-btn p-btn-block p-btn-sm">清除测量</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Measurement Result -->
-    <div id="measure-result" class="hidden"></div>
+    <!-- ─── 3D Viewport ─── -->
+    <main id="viewport">
 
-    <!-- Animation Bar -->
-    <div id="anim-bar" class="hidden">
-      <button id="btn-prev" class="anim-btn" title="First frame">&#9206;</button>
-      <button id="btn-play" class="anim-btn" title="Play/Pause (Space)">&#9654;</button>
-      <button id="btn-next" class="anim-btn" title="Last frame">&#9197;</button>
-      <input type="range" id="frame-slider" min="0" max="0" value="0" step="1" />
-      <span id="frame-label" class="frame-label">0 / 0</span>
-      <span id="frame-time"></span>
-    </div>
-  </main>
+      <!-- Drop zone -->
+      <div id="drop-zone" class="hidden">
+        <div class="msg">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div class="title">拖放文件到此处</div>
+          <div class="sub">result_mesh.json 或 .vtp 格式</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div id="toolbar">
+        <div class="tb-group">
+          <button class="tb-btn" id="btn-reset" title="重置视角 (R)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </button>
+          <button class="tb-btn" id="btn-top" title="俯视图 (↑)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L22 7 L12 12 L2 7 Z"/><line x1="12" y1="12" x2="12" y2="22"/><path d="M2 7 L12 12 L12 22"/><path d="M22 7 L12 12 L12 22"/></svg>
+          </button>
+          <button class="tb-btn" id="btn-front" title="正视图 (2)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+          </button>
+          <button class="tb-btn" id="btn-right" title="右视图 (3)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="21" y1="3" x2="3" y2="21"/><line x1="3" y1="9" x2="15" y2="21"/></svg>
+          </button>
+        </div>
+        <div class="tb-group">
+          <button class="tb-btn" id="btn-measure" title="测量 (M)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21l4-4m0 0l7-7m-7 7l-4-4m15 1l-4 4m0 0l-7-7m7 7l4 4"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Info overlay -->
+      <div id="info" class="hidden">
+        <div class="info-row"><span class="info-label">节点</span><span class="info-value" id="info-nodes">—</span></div>
+        <div class="info-row"><span class="info-label">单元</span><span class="info-value" id="info-elems">—</span></div>
+        <div class="info-row"><span class="info-label">帧</span><span class="info-value" id="info-frames">—</span></div>
+      </div>
+
+      <!-- Legend overlay -->
+      <div id="legend" class="hidden">
+        <div id="legend-title">未选择场变量</div>
+        <div id="legend-bar"></div>
+        <div id="legend-labels"><span id="legend-min">0</span><span id="legend-max">0</span></div>
+      </div>
+
+      <!-- Probe info tooltip -->
+      <div id="probe-info" class="probe-info hidden">
+        <div class="probe-info-header">
+          <span class="probe-field">字段</span>
+          <span class="probe-close" id="probe-close">&times;</span>
+        </div>
+        <div class="probe-info-body">
+          <div class="probe-row"><span class="probe-label">值</span><span class="probe-value">—</span></div>
+          <div class="probe-row"><span class="probe-label">范围</span><span class="probe-range">—</span></div>
+        </div>
+      </div>
+
+      <!-- Animation bar -->
+      <div id="anim-bar" class="hidden">
+        <div class="ab-loop-group">
+          <button class="ab-btn loop-btn" data-loop="once" title="播放一次">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><text x="12" y="16" font-size="7" text-anchor="middle" fill="currentColor">1</text></svg>
+          </button>
+          <button class="ab-btn loop-btn active" data-loop="loop" title="循环播放">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+          <button class="ab-btn loop-btn" data-loop="pingpong" title="往复播放">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><polyline points="7 23 3 19 7 15"/><line x1="3" y1="5" x2="21" y2="19"/></svg>
+          </button>
+        </div>
+        <button class="ab-btn" id="btn-first" title="第一帧">
+          <svg viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line y1="4" x2="4" y2="4" x1="4"/><line y1="20" x2="4" y2="20" x1="4"/></svg>
+        </button>
+        <button class="ab-btn" id="btn-play" title="播放/暂停 (Space)">
+          <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+        <button class="ab-btn" id="btn-last" title="最后一帧">
+          <svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+        </button>
+        <input type="range" id="frame-slider" min="0" max="0" value="0" step="1">
+        <span class="ab-label" id="frame-label">0 / 0</span>
+        <span id="ab-time" title="当前时间"></span>
+      </div>
+
+    </main>
+  </div>
 </div>
+
+<!-- Progress overlay -->
+<div id="progress-overlay" class="hidden">
+  <div class="progress-inner">
+    <div class="progress-spinner"></div>
+    <div class="progress-text" id="progress-text">加载中...</div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

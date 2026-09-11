@@ -5,7 +5,9 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -18,7 +20,10 @@ export default defineConfig({
     port: 5173,
     open: false,
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 });

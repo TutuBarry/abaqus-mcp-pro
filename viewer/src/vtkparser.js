@@ -1,140 +1,171 @@
 /**
- * VTK/VTP XML PolyData parser.
- * Parses the ASCII VTK XML PolyData format used in model v2.0.
+ * VTK XML PolyData (ASCII) parser.
+ * Parses .vtp files into geometry data usable by Viewer3D.
  *
- * VTP structure:
- *   <VTKFile type="PolyData">
- *     <PolyData>
- *       <Piece NumberOfPoints="N" NumberOfPolys="M">
- *         <PointData>
- *           <DataArray type="Float64" Name="S_Mises">...</DataArray>
- *           <DataArray type="Float64" Name="U" NumberOfComponents="3">...</DataArray>
- *         </PointData>
- *         <Points>
- *           <DataArray type="Float64" Name="Points" NumberOfComponents="3">...</DataArray>
- *         </Points>
- *         <Polys>
- *           <DataArray type="Int32" Name="connectivity">tri indices...</DataArray>
- *           <DataArray type="Int32" Name="offsets">cumulative counts...</DataArray>
- *         </Polys>
- *       </Piece>
- *     </PolyData>
- *   </VTKFile>
+ * Supports:
+ * - VTKFile type="PolyData" (legacy XML format)
+ * - ASCII format only (base64 not yet supported)
+ * - PointData Scalars (for field values)
+ * - Points + Polys (triangles/quads)
  */
-
-export class VTKParsedData {
-  constructor() {
-    /** @type {Float64Array} Flat [x,y,z, x,y,z, ...] */
-    this.points = null;
-    /** @type {Uint32Array} Triangle indices */
-    this.triangles = null;
-    /** @type {Object<string, Float64Array>} Point data arrays keyed by name */
-    this.pointData = {};
-    /** @type {number} Number of points */
-    this.numPoints = 0;
-    /** @type {number} Number of triangles */
-    this.numPolys = 0;
-  }
-}
 
 /**
- * Parse a VTP XML string into a VTKParsedData object.
- * Handles ASCII format DataArrays.
+ * Parse a VTK XML PolyData string.
+ * @param {string} text - VTP file content
+ * @returns {object} { positions, indices, fieldValues, fieldMin, fieldMax }
  */
-export function parseVTP(xmlText) {
-  const data = new VTKParsedData();
+export function parseVTP(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const root = doc.documentElement;
 
-  // Extract NumberOfPoints and NumberOfPolys
-  const pieceMatch = xmlText.match(/<Piece\s+NumberOfPoints="(\d+)"[^>]*NumberOfPolys="(\d+)"/);
-  if (!pieceMatch) throw new Error('Cannot find Piece element in VTP');
-  data.numPoints = parseInt(pieceMatch[1], 10);
-  data.numPolys = parseInt(pieceMatch[2], 10);
+  if (root.getAttribute('type') !== 'PolyData') {
+    throw new Error('Only PolyData type is supported');
+  }
 
-  // Extract Points
-  const pointsMatch = xmlText.match(/<Points>[\s\S]*?<DataArray[^>]*>([\s\S]*?)<\/DataArray>[\s\S]*?<\/Points>/);
-  if (!pointsMatch) throw new Error('Cannot find Points in VTP');
-  data.points = parseFloat64Array(pointsMatch[1], 3, data.numPoints);
+  // ── Points ──
+  const pointsEl = root.querySelector('Points DataArray');
+  if (!pointsEl) throw new Error('No Points DataArray found');
+  const ptsRaw = parseDataArray(pointsEl);
+  const positions = [];
+  for (let i = 0; i < ptsRaw.length; i += 3) {
+    positions.push(ptsRaw[i], ptsRaw[i + 1], ptsRaw[i + 2]);
+  }
 
-  // Extract Polys: connectivity + offsets
-  const polysSection = xmlText.match(/<Polys>([\s\S]*?)<\/Polys>/);
-  if (!polysSection) throw new Error('Cannot find Polys in VTP');
-  const polysText = polysSection[1];
-
-  const connMatch = polysText.match(/<DataArray[^>]*Name="connectivity"[^>]*>([\s\S]*?)<\/DataArray>/);
-  const offsMatch = polysText.match(/<DataArray[^>]*Name="offsets"[^>]*>([\s\S]*?)<\/DataArray>/);
-  if (!connMatch || !offsMatch) throw new Error('Missing connectivity or offsets in Polys');
-
-  const connectivity = parseInt32Array(connMatch[1]);
-  const offsets = parseInt32Array(offsMatch[1]);
-
-  // Convert from VTK polys (offsets-based) to flat triangle array
-  // Each offset gives the end of a polygon's indices
-  let prevOffset = 0;
-  const triIndices = [];
-  for (let i = 0; i < offsets.length; i++) {
-    const off = offsets[i];
-    const verts = [];
-    for (let j = prevOffset; j < off; j++) {
-      verts.push(connectivity[j]);
-    }
-    prevOffset = off;
-    if (verts.length === 3) {
-      triIndices.push(verts[0], verts[1], verts[2]);
-    } else if (verts.length > 3) {
-      // Fan triangulation for quads/polygons
-      for (let k = 1; k < verts.length - 1; k++) {
-        triIndices.push(verts[0], verts[k], verts[k + 1]);
+  // ── Polys (connectivity + offsets) ──
+  let indices = [];
+  const polysEl = root.querySelector('Polys');
+  if (polysEl) {
+    const connEl = polysEl.querySelector('DataArray[Name="connectivity"]');
+    const offsetsEl = polysEl.querySelector('DataArray[Name="offsets"]');
+    if (connEl && offsetsEl) {
+      const conn = parseDataArray(connEl);
+      const offsets = parseDataArray(offsetsEl);
+      let cursor = 0;
+      for (let i = 0; i < offsets.length; i++) {
+        const end = offsets[i];
+        const nVerts = end - cursor;
+        const face = [];
+        for (let k = 0; k < nVerts; k++) face.push(conn[cursor + k]);
+        // Triangulate
+        if (nVerts === 3) {
+          indices.push(face[0], face[1], face[2]);
+        } else if (nVerts === 4) {
+          indices.push(face[0], face[1], face[2]);
+          indices.push(face[0], face[2], face[3]);
+        } else {
+          for (let k = 1; k < nVerts - 1; k++) {
+            indices.push(face[0], face[k], face[k + 1]);
+          }
+        }
+        cursor = end;
       }
     }
   }
-  data.triangles = new Uint32Array(triIndices);
-  data.numPolys = triIndices.length / 3;
 
-  // Extract PointData arrays
- const pointDataSection = xmlText.match(/<PointData>([\s\S]*?)<\/PointData>/);
- if (pointDataSection) {
-   const pdText = pointDataSection[1];
-   const arrayRegex = /<DataArray[^>]*Name="([^"]*)"[^>]*>([\s\S]*?)<\/DataArray>/g;
-   let match;
-   while ((match = arrayRegex.exec(pdText)) !== null) {
-     const name = match[1];
-     const rawText = match[2].trim();
+  // ── PointData Scalars ──
+  let fieldValues = null;
+  let fieldMin = 0;
+  let fieldMax = 1;
+  const pdScalars = root.querySelector('PointData DataArray[NumberOfComponents="1"]');
+  if (pdScalars) {
+    fieldValues = parseDataArray(pdScalars);
+    const valid = fieldValues.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (valid.length > 0) {
+      fieldMin = Math.min(...valid);
+      fieldMax = Math.max(...valid);
+    }
+  }
 
-     // Determine number of components from attribute
-     const headerMatch = match[0].match(/NumberOfComponents="(\d+)"/);
-     const nComp = headerMatch ? parseInt(headerMatch[1], 10) : 1;
-
-     // Check type
-     const isFloat = /type="Float(32|64)"/.test(match[0]);
-
-     if (nComp === 1) {
-       data.pointData[name] = isFloat ? parseFloat64Array(rawText, 1, data.numPoints) : parseInt32Array(rawText, data.numPoints);
-     } else {
-       data.pointData[name] = parseFloat64Array(rawText, nComp, data.numPoints);
-     }
-   }
- }
-
-  return data;
-}
-
-function parseFloat64Array(text, nComp, expectedCount) {
-  const nums = text.trim().split(/[\s\n\r]+/).filter(s => s.length > 0).map(Number);
-  return new Float64Array(nums);
-}
-
-function parseInt32Array(text, expectedCount) {
-  const nums = text.trim().split(/[\s\n\r]+/).filter(s => s.length > 0).map(Number);
-  return new Int32Array(nums);
+  return { positions, indices, fieldValues, fieldMin, fieldMax };
 }
 
 /**
- * Fetch and parse a VTP file given its URL path relative to the model location.
+ * Parse a VTK DataArray element containing ASCII numbers.
  */
-export async function loadVTP(vtpUrl, baseUrl) {
-  const url = new URL(vtpUrl, baseUrl).href;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to load VTP: ${resp.status} ${resp.statusText}`);
-  const text = await resp.text();
-  return parseVTP(text);
+function parseDataArray(el) {
+  const fmt = el.getAttribute('format') || 'ascii';
+  if (fmt !== 'ascii') {
+    throw new Error('Only ASCII format DataArray is supported');
+  }
+  const text = el.textContent.trim();
+  return text.split(/\s+/).map(Number);
+}
+
+/**
+ * Create VTP content from geometry data (for export).
+ * @param {number[]} positions - flat [x,y,z,...]
+ * @param {number[]} indices - triangle indices
+ * @param {number[]} [fieldValues] - per-node scalar values
+ * @returns {string} VTP XML text
+ */
+export function createVTP(positions, indices, fieldValues) {
+  const nPts = positions.length / 3;
+  if (!Number.isInteger(nPts) || nPts === 0) throw new Error('Invalid positions array');
+  const nPolys = indices.length / 3;
+  if (!Number.isInteger(nPolys) || nPolys === 0) throw new Error('Invalid indices array');
+
+  // Build connectivity array (list of vertex indices per poly)
+  const conn = [];
+  const offsets = [];
+  for (let i = 0; i < nPolys; i++) {
+    const base = i * 3;
+    conn.push(indices[base], indices[base + 1], indices[base + 2]);
+    offsets.push(conn.length);
+  }
+
+  const fmt = (v) => {
+    if (Number.isInteger(v)) return v.toString();
+    if (Math.abs(v) < 1e-10 && v !== 0) return v.toExponential(8);
+    return v.toFixed(8).replace(/\.?0+$/, '');
+  };
+
+  let xml = `<?xml version="1.0"?>
+<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">
+  <PolyData>
+    <Piece NumberOfPoints="${nPts}" NumberOfVerts="0" NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="${nPolys}">
+      <Points>
+        <DataArray type="Float32" NumberOfComponents="3" format="ascii">
+${positions.map(v => fmt(v)).join(' ')}
+        </DataArray>
+      </Points>`;
+
+  if (fieldValues) {
+    xml += `
+      <PointData Scalars="field">
+        <DataArray type="Float32" Name="field" NumberOfComponents="1" format="ascii">
+${fieldValues.map(v => fmt(v)).join(' ')}
+        </DataArray>
+      </PointData>`;
+  }
+
+  xml += `
+      <Polys>
+        <DataArray type="Int32" Name="connectivity" format="ascii">
+${conn.join(' ')}
+        </DataArray>
+        <DataArray type="Int32" Name="offsets" format="ascii">
+${offsets.join(' ')}
+        </DataArray>
+      </Polys>
+    </Piece>
+  </PolyData>
+</VTKFile>`;
+
+  return xml;
+}
+
+
+/**
+ * Extract just the scalar values and positions from a VTP parse result
+ * for use as a per-frame data source in v2.0 format.
+ * Returns an object compatible with the Viewer3D._buildGeom expectations.
+ */
+export function vtpToFrameData(vtpResult, fieldMin, fieldMax) {
+  return {
+    positions: vtpResult.positions,
+    indices: vtpResult.indices,
+    fieldValues: vtpResult.fieldValues,
+    fieldMin: fieldMin !== undefined ? fieldMin : vtpResult.fieldMin,
+    fieldMax: fieldMax !== undefined ? fieldMax : vtpResult.fieldMax,
+  };
 }

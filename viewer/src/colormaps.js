@@ -1,42 +1,74 @@
-// Color map definitions — each is a list of [r,g,b] stops
+/**
+ * Colormap definitions.
+ * Each colormap is an array of [r,g,b] stops in [0,1] range.
+ */
+
 export const COLORMAPS = {
-  jet: [
-    [0,0,0.56],[0,0,1],[0,0.5,1],[0,1,1],
-    [0,1,0.5],[0.5,1,0],[1,1,0],[1,0.5,0],[1,0,0],[0.5,0,0]
-  ],
-  coolwarm: [
-    [0.23,0.30,0.75],[0.40,0.52,0.90],[0.56,0.70,0.96],
-    [0.75,0.86,0.99],[0.93,0.96,1.00],[0.99,0.93,0.88],
-    [0.98,0.78,0.63],[0.94,0.57,0.39],[0.82,0.33,0.19],[0.65,0.06,0.06]
-  ],
-  rainbow: [
-    [0.98,0.01,0.00],[0.99,0.48,0.00],[0.99,0.98,0.00],
-    [0.00,0.90,0.07],[0.00,0.60,0.80],[0.20,0.00,0.60]
-  ],
-  greyscale: [
-    [0,0,0],[0.11,0.11,0.11],[0.22,0.22,0.22],[0.33,0.33,0.33],
-    [0.44,0.44,0.44],[0.56,0.56,0.56],[0.67,0.67,0.67],
-    [0.78,0.78,0.78],[0.89,0.89,0.89],[1,1,1]
-  ],
-  inferno: [
-    [0.00,0.00,0.02],[0.11,0.06,0.33],[0.32,0.09,0.47],
-    [0.53,0.13,0.46],[0.72,0.22,0.33],[0.86,0.38,0.16],
-    [0.94,0.58,0.02],[0.97,0.78,0.13],[0.99,0.96,0.59]
-  ],
-  viridis: [
-    [0.27,0.00,0.33],[0.28,0.24,0.42],[0.24,0.45,0.47],
-    [0.18,0.64,0.43],[0.21,0.81,0.28],[0.49,0.92,0.11],
-    [0.75,0.96,0.09],[0.94,0.98,0.13],[0.99,0.99,0.71]
-  ],
+  jet: {
+    name: 'Jet',
+    colors: [
+      [0, 0, 0.56], [0, 0, 1], [0, 0.5, 1], [0, 1, 1],
+      [0, 1, 0.5], [0.5, 1, 0], [1, 1, 0], [1, 0.5, 0],
+      [1, 0, 0], [0.5, 0, 0],
+    ],
+  },
+  coolwarm: {
+    name: 'Cool-Warm',
+    colors: [
+      [0.23, 0.30, 0.75], [0.35, 0.42, 0.83], [0.50, 0.55, 0.90],
+      [0.65, 0.68, 0.93], [0.80, 0.80, 0.85], [0.90, 0.75, 0.65],
+      [0.95, 0.60, 0.45], [0.90, 0.42, 0.28], [0.80, 0.25, 0.15],
+    ],
+  },
+  rainbow: {
+    name: 'Rainbow',
+    colors: [
+      [0.28, 0, 0.53], [0, 0, 0.75], [0, 0.38, 0.75],
+      [0, 0.63, 0.40], [0.20, 0.80, 0.20], [0.60, 0.78, 0],
+      [0.85, 0.65, 0], [0.95, 0.35, 0], [0.85, 0, 0],
+    ],
+  },
+  greyscale: {
+    name: 'Greyscale',
+    colors: [
+      [0, 0, 0], [0.125, 0.125, 0.125], [0.25, 0.25, 0.25],
+      [0.375, 0.375, 0.375], [0.5, 0.5, 0.5],
+      [0.625, 0.625, 0.625], [0.75, 0.75, 0.75],
+      [0.875, 0.875, 0.875], [1, 1, 1],
+    ],
+  },
+  inferno: {
+    name: 'Inferno',
+    colors: [
+      [0, 0, 0.02], [0.04, 0.02, 0.22], [0.15, 0.02, 0.45],
+      [0.34, 0.02, 0.52], [0.55, 0.08, 0.42], [0.75, 0.22, 0.22],
+      [0.90, 0.42, 0.07], [0.97, 0.65, 0.03], [1, 0.90, 0.10],
+    ],
+  },
+  viridis: {
+    name: 'Viridis',
+    colors: [
+      [0.27, 0.00, 0.33], [0.28, 0.16, 0.42], [0.26, 0.30, 0.51],
+      [0.20, 0.45, 0.54], [0.13, 0.58, 0.51], [0.13, 0.71, 0.42],
+      [0.35, 0.82, 0.28], [0.64, 0.89, 0.14], [0.99, 0.96, 0.00],
+    ],
+  },
 };
 
-/** Sample a color map at t in [0,1], returning [r,g,b] */
+/**
+ * Interpolate a colormap at position t in [0, 1].
+ * @param {string} name - colormap key
+ * @param {number} t - normalized value 0..1
+ * @returns {[number, number, number]} [r, g, b] each in [0,1]
+ */
 export function sampleColormap(name, t) {
-  const stops = COLORMAPS[name] || COLORMAPS.jet;
+  const cmap = COLORMAPS[name] || COLORMAPS.jet;
+  const stops = cmap.colors;
+  const n = stops.length;
   t = Math.max(0, Math.min(1, t));
-  const idx = t * (stops.length - 1);
+  const idx = t * (n - 1);
   const lo = Math.floor(idx);
-  const hi = Math.min(lo + 1, stops.length - 1);
+  const hi = Math.min(lo + 1, n - 1);
   const f = idx - lo;
   return [
     stops[lo][0] + (stops[hi][0] - stops[lo][0]) * f,
@@ -45,39 +77,21 @@ export function sampleColormap(name, t) {
   ];
 }
 
-/** Return a CSS gradient string for a color map */
-export function colormapCSSGradient(name) {
-  const stops = COLORMAPS[name] || COLORMAPS.jet;
-  return 'linear-gradient(to right, ' +
-    stops.map((c, i) => {
-      const pct = (i / (stops.length - 1)) * 100;
-      return `rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)}) ${pct}%`;
-    }).join(', ') +
-  ')';
+/**
+ * Generate a CSS gradient string for a colormap.
+ */
+export function colormapToCSS(name) {
+  const cmap = COLORMAPS[name] || COLORMAPS.jet;
+  const stops = cmap.colors.map((c, i) => {
+    const pct = (i / (cmap.colors.length - 1)) * 100;
+    return `${pct}% rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)})`;
+  });
+  return `linear-gradient(to right, ${stops.join(',')})`;
 }
 
-/** Draw a color map onto a 2D canvas */
-export function drawColormapOnCanvas(canvas, name, width, height) {
-  const ctx = canvas.getContext('2d');
-  const stops = COLORMAPS[name] || COLORMAPS.jet;
-  const imageData = ctx.createImageData(width, height);
-  for (let x = 0; x < width; x++) {
-    const t = x / (width - 1);
-    const [r, g, b] = sampleColormap(name, t);
-    for (let y = 0; y < height; y++) {
-      const idx = (y * width + x) * 4;
-      imageData.data[idx] = Math.round(r * 255);
-      imageData.data[idx + 1] = Math.round(g * 255);
-      imageData.data[idx + 2] = Math.round(b * 255);
-      imageData.data[idx + 3] = 255;
-    }
-  }
-  ctx.putImageData(imageData, 0, 0);
-}
-
-/** Format a number for display */
-export function fmtNum(v) {
-  if (v === undefined || v === null) return '-';
-  if (Math.abs(v) < 0.001 || Math.abs(v) > 1e6) return v.toExponential(2);
-  return parseFloat(v.toPrecision(4)).toString();
+/**
+ * Get a list of available colormap names.
+ */
+export function getColormapNames() {
+  return Object.keys(COLORMAPS);
 }

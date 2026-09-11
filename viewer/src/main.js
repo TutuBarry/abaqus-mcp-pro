@@ -1,50 +1,54 @@
-/**
- * Abaqus MCP Pro - 3D Result Viewer
- * Entry point. Initializes the 3D viewer and UI.
- */
-import './style.css';
-import { Viewer3D } from './viewer3d.js';
-import { UIController } from './ui.js';
+import "./style.css";
+import { Viewer3D } from "./viewer3d.js";
+import { UIController } from "./ui.js";
+import { ODBExportClient } from "./odbexport.js";
+import { ProgressLoader } from "./loader.js";
 
-function main() {
-  const container = document.getElementById('viewport');
-  if (!container) {
-    console.error('Viewport element not found');
-    return;
+export const state = {
+  data: null,
+  format: "v1.0",
+  currentFrame: 0,
+  currentField: null,
+  deformed: false,
+  wireframe: false,
+  clipping: false,
+  playing: false,
+  playTimer: null,
+  colormapName: "jet",
+  scaleFactor: 1.0,
+  exportedJsonPath: null,
+  loading: false,
+};
+
+const viewer = new Viewer3D("viewport");
+const ui = new UIController(viewer, state);
+const odb = new ODBExportClient(viewer, state, ui);
+const loader = new ProgressLoader("progress-overlay");
+
+viewer.init();
+ui.init();
+odb.init();
+
+const origLoad = ui.loadSample.bind(ui);
+ui.loadSample = async (url) => {
+  loader.show("加载模型...");
+  try {
+    await origLoad(url);
+    document.getElementById("welcome").classList.add("hidden");
+  } finally {
+    loader.hide();
   }
+};
 
-  // Initialize 3D viewer
-  const viewer = new Viewer3D(container);
+document.getElementById("welcome-load-sample").addEventListener("click", async () => {
+  await ui.loadSample("samples/model.json");
+});
 
-  // Initialize UI controller
-  const ui = new UIController(viewer);
+document.getElementById("welcome-open-file").addEventListener("click", () => {
+  document.getElementById("welcome").classList.add("hidden");
+  const fileInput = document.getElementById("file-input");
+  if (fileInput) fileInput.click();
+});
 
-  // Check for file URL parameter
-  const params = new URLSearchParams(window.location.search);
-  const urlFile = params.get('file');
-  if (urlFile) {
-    (async () => {
-      try {
-        const resp = await fetch(urlFile);
-        if (resp.ok) {
-          const data = await resp.json();
-          await viewer.loadModel(data, location.href);
-          ui._updateAll(data);
-        }
-      } catch (e) {
-        console.error('URL file load failed:', e);
-      }
-    })();
-  }
-
-  // Expose for debugging
-  window.__viewer = viewer;
-  window.__ui = ui;
-}
-
-// Wait for DOM
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', main);
-} else {
-  main();
-}
+window.__viewer = { viewer, state, ui, odb };
+console.log("ABAQUS MCP Pro Viewer 3.0 ready");
