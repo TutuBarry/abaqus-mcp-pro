@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Abaqus ODB to VTK Unstructured Grid (.vtu) Exporter
 
