@@ -16,6 +16,9 @@ export class UIController {
   }
 
   init() {
+    // Wire viewer load callbacks to progress loader
+    this.viewer._onLoadStart = () => this.progress.show();
+    this.viewer._onLoadEnd = () => this.progress.hide();
     this._bindLeftBar();
     this._bindPanels();
     this._bindFileInput();
@@ -39,6 +42,7 @@ export class UIController {
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+      data._baseUrl = url;
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
       this.state.format = fmt === '2.0' || fmt.startsWith('2.') ? 'v2.0' : 'v1.0';
@@ -65,20 +69,21 @@ export class UIController {
 
   /* ── Left Bar ── */
   _bindLeftBar() {
-    const openPanel = (name) => {
+    const togglePanel = (name) => {
+      const alreadyOpen = this.panels[name];
       Object.keys(this.panels).forEach((k) => (this.panels[k] = false));
-      this.panels[name] = true;
+      if (!alreadyOpen) this.panels[name] = true;
       this._syncPanels();
     };
 
     document.getElementById('lb-file').addEventListener('click', () => {
-      openPanel('file');
+      togglePanel('file');
       document.getElementById('file-input').click();
     });
-    document.getElementById('lb-odb').addEventListener('click', () => openPanel('odb'));
-    document.getElementById('lb-settings').addEventListener('click', () => openPanel('display'));
-    document.getElementById('lb-fields').addEventListener('click', () => openPanel('fields'));
-    document.getElementById('lb-measure').addEventListener('click', () => openPanel('measure'));
+    document.getElementById('lb-odb').addEventListener('click', () => togglePanel('odb'));
+    document.getElementById('lb-settings').addEventListener('click', () => togglePanel('display'));
+    document.getElementById('lb-fields').addEventListener('click', () => togglePanel('fields'));
+    document.getElementById('lb-measure').addEventListener('click', () => togglePanel('measure'));
     document.getElementById('lb-screenshot').addEventListener('click', () => this.viewer.takeScreenshot());
     document.getElementById('lb-help').addEventListener('click', () => this._showHelp());
   }
@@ -159,6 +164,7 @@ export class UIController {
       const text = await file.text();
       let data;
       try { data = JSON.parse(text); } catch (_) { throw new Error('不是有效的 JSON 文件'); }
+      data._baseUrl = window.location.href;
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
       this.state.format = fmt === '2.0' || fmt.startsWith('2.') ? 'v2.0' : 'v1.0';
@@ -625,14 +631,13 @@ export class UIController {
     slider.value = this.state.currentFrame;
     document.getElementById('frame-label').textContent = (this.state.currentFrame + 1) + ' / ' + frames.length;
 
-    if (this.state.format === 'v1.0') {
-      const frame = frames[this.state.currentFrame];
-      if (frame && frame.time !== undefined) {
-        document.getElementById('ab-time').textContent = 't=' + parseFloat(frame.time.toPrecision(4));
-        return;
-      }
+    const frame = frames[this.state.currentFrame];
+    if (frame && (frame.time !== undefined || frame.t !== undefined)) {
+      const t = frame.time !== undefined ? frame.time : frame.t;
+      document.getElementById('ab-time').textContent = 't=' + parseFloat(Number(t).toPrecision(4));
+    } else {
+      document.getElementById('ab-time').textContent = '';
     }
-    document.getElementById('ab-time').textContent = '';
   }
 
   _setFileBadge(name) {

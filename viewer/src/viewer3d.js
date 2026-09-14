@@ -45,6 +45,9 @@ export class Viewer3D {
     this.axisGroup = null;
     this.probeResult = null;
     this._onPickCallback = null;
+    this._vtpCache = new Map();
+    this._onLoadStart = null;
+    this._onLoadEnd = null;
   }
 
   init() {
@@ -87,7 +90,7 @@ export class Viewer3D {
     this.controls.maxDistance = 5000;
 
     // Grid
-    this.gridHelper = new THREE.GridHelper(5, 20, 0x21262d, 0x161b22);
+    this.gridHelper = new THREE.GridHelper(5, 20, 0x444466, 0x333355);
     this.scene.add(this.gridHelper);
 
     // Lighting (PBR-optimized)
@@ -328,7 +331,7 @@ export class Viewer3D {
         roughness: 0.45,
         side: THREE.DoubleSide,
         transparent: false,
-        envMapIntensity: 0.4,
+        envMapIntensity: 0.5,
       });
       const mesh = new THREE.Mesh(geom, mat);
       this.meshGroup.add(mesh);
@@ -339,7 +342,7 @@ export class Viewer3D {
         color: 0x8b949e,
         wireframe: true,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.35,
       }));
       wf.visible = false;
       this.wireframeGroup.add(wf);
@@ -372,18 +375,32 @@ export class Viewer3D {
     // Resolve VTP path relative to the model JSON's base URL
     const baseUrl = modelJson._baseUrl || window.location.href;
     const fullPath = baseUrl ? new URL(vtpFilename, baseUrl.replace(/\?.*$/, '')).href : vtpFilename;
-    let vtpText;
-    try {
-      const resp = await fetch(fullPath);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      vtpText = await resp.text();
-      this._lastVtpPaths = this._lastVtpPaths || {};
-      this._lastVtpPaths[frameIdx] = fullPath;
-    } catch (e) { console.error('VTP fetch failed:', fullPath, e); this._showDropOverlay(true); return; }
-    this._showDropOverlay(false);
-    const vtpResult = parseVTP(vtpText);
-    if (!vtpResult || vtpResult.positions.length === 0) return;
-    // Store vtp metadata for UI queries
+    // Check cache first
+    let vtpResult = this._vtpCache.get(fullPath);
+    if (!vtpResult) {
+      if (this._onLoadStart) this._onLoadStart();
+      let vtpText;
+      try {
+        const resp = await fetch(fullPath);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        vtpText = await resp.text();
+        this._lastVtpPaths = this._lastVtpPaths || {};
+        this._lastVtpPaths[frameIdx] = fullPath;
+      } catch (e) { console.error('VTP fetch failed:', fullPath, e); this._showDropOverlay(true); if (this._onLoadEnd) this._onLoadEnd(); return; }
+      this._showDropOverlay(false);
+      vtpResult = parseVTP(vtpText);
+      if (!vtpResult || vtpResult.positions.length === 0) { if (this._onLoadEnd) this._onLoadEnd(); return; }
+      this._vtpCache.set(fullPath, vtpResult);
+      if (this._onLoadEnd) this._onLoadEnd();
+    }
+    this._renderVtpResult(vtpResult, modelJson, { colormap });
+    return this._fitVtpCamera();
+  }
+
+  _renderVtpResult(vtpResult, modelJson, options = {}) {
+    const { colormap = 'jet' } = options;
+    this.meshGroup.clear();
+    this.wireframeGroup.clear();
     this._lastVtpResult = vtpResult;
     const elements = modelJson.elements || {};
     const fieldMin = modelJson.field_min !== undefined ? modelJson.field_min : vtpResult.fieldMin;
@@ -402,18 +419,22 @@ export class Viewer3D {
       if (result.colors && result.colors.length > 0) geom.setAttribute('color', new THREE.Float32BufferAttribute(result.colors, 3));
       geom.computeVertexNormals();
       const hasColors = !!(result.colors && result.colors.length > 0);
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: hasColors, color: hasColors ? 0xffffff : 0x58a6ff, metalness: 0.05, roughness: 0.45, side: THREE.DoubleSide, envMapIntensity: 0.4 });
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: hasColors, color: hasColors ? 0xffffff : 0x58a6ff, metalness: 0.05, roughness: 0.45, side: THREE.DoubleSide, envMapIntensity: 0.5 });
       this.meshGroup.add(new THREE.Mesh(geom, mat));
       const wGeom = geom.clone();
-      const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({ color: 0x8b949e, wireframe: true, transparent: true, opacity: 0.15 }));
+      const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({ color: 0x8b949e, wireframe: true, transparent: true, opacity: 0.35 }));
       wf.visible = false;
       this.wireframeGroup.add(wf);
       if (result.bounds) { allBounds.expandByPoint(result.bounds.min); allBounds.expandByPoint(result.bounds.max); }
       hasGeom = true;
     }
-    if (!hasGeom) return;
-    this._fitCamera(allBounds);
-    return { bounds: allBounds };
+    this._vtpLastBounds = hasGeom ? allBounds : null;
+  }
+
+  _fitVtpCamera() {
+    if (!this._vtpLastBounds || this._vtpLastBounds.isEmpty()) return;
+    this._fitCamera(this._vtpLastBounds);
+    return { bounds: this._vtpLastBounds };
   }
   /**
    * Get the last loaded VTP frame's node and element counts
@@ -498,7 +519,7 @@ export class Viewer3D {
       metalness: 0.05,
       roughness: 0.45,
       side: THREE.DoubleSide,
-      envMapIntensity: 0.4,
+      envMapIntensity: 0.5,
     });
     const mesh = new THREE.Mesh(geom, mat);
     this.meshGroup.add(mesh);
@@ -507,7 +528,7 @@ export class Viewer3D {
       color: 0x8b949e,
       wireframe: true,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.35,
     }));
     wf.visible = false;
     this.wireframeGroup.add(wf);
@@ -539,11 +560,15 @@ export class Viewer3D {
     const vtpFilename = (typeof rawEntry === 'string') ? rawEntry : (rawEntry && (rawEntry.vtp_file || rawEntry.file || rawEntry.path));
     if (!vtpFilename) return null;
     const fullPath = baseUrl ? new URL(vtpFilename, baseUrl.replace(/\?.*$/, '')).href : vtpFilename;
+    // Check cache first
+    if (this._vtpCache.has(fullPath)) return this._vtpCache.get(fullPath);
     try {
       const resp = await fetch(fullPath);
       if (!resp.ok) return null;
       const text = await resp.text();
-      return parseVTP(text);
+      const result = parseVTP(text);
+      if (result) this._vtpCache.set(fullPath, result);
+      return result;
     } catch (e) {
       return null;
     }
@@ -717,7 +742,7 @@ export class Viewer3D {
       this.gridHelper.material.dispose();
     }
     const gridSize = Math.pow(10, Math.ceil(Math.log10(s * 0.7)));
-    this.gridHelper = new THREE.GridHelper(gridSize, 20, 0x21262d, 0x161b22);
+    this.gridHelper = new THREE.GridHelper(gridSize, 20, 0x444466, 0x333355);
     this.scene.add(this.gridHelper);
   }
 
@@ -792,6 +817,12 @@ export class Viewer3D {
     link.download = name || `abaqus-screenshot-${Date.now()}.png`;
     link.href = this.renderer.domElement.toDataURL('image/png');
     link.click();
+  }
+
+  // ── VTP Cache ──
+
+  clearVtpCache() {
+    this._vtpCache.clear();
   }
 
   // ── Internal ──

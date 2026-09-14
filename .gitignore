@@ -65,3 +65,7 @@ htmlcov/
 # Example outputs
 examples/output/
 node_modules/
+
+# Research / scratch
+MechAgent/
+py/
