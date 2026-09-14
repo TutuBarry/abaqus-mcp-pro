@@ -119,7 +119,7 @@ def _run_export(task_id, odb_path, result_dir, req):
                 'import sys; sys.path.insert(0, %r)\n'
                 'from export.export_to_vtk import export_odb_to_vtk\n'
                 'result = export_odb_to_vtk(%r, output_dir=%r, step_index=%d,'
-                ' frame_step=%d, deformation_scale=%f, fields=%s)\n'
+                ' frame_step=%d, deformation_scale=%f, fields=%s, binary=False)\n'
                 'if result:\n'
                 '  import json\n'
                 '  print("OK:" + result)\n'

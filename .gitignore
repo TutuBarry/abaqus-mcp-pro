@@ -69,3 +69,11 @@ node_modules/
 # Research / scratch
 MechAgent/
 py/
+
+
+# Temporary fix scripts
+fix*.py
+_patch*.py
+_write_*.py
+_temp*
+test_patch.txt

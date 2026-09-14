@@ -100,6 +100,64 @@ ELEMENT_TYPE_MAP = {
     "R3D4":  (VTK_QUAD, 4),
 }
 
+
+def _lookup_vtk_type(abaqus_element_type):
+    """Substring-based Abaqus -> VTK cell type mapping (fallback).
+
+    Matches element type by substring (case-insensitive), following the
+    same convention as odb2vtk. Returns (vtk_type, num_nodes_per_cell)
+    or raises KeyError if no match is found.
+    """
+    et = abaqus_element_type.upper()
+    # --- linear cells ---
+    if "C3D4" in et:
+        return (10, 4)   # VTK_TETRA
+    if "C3D5" in et:
+        return (7, 5)    # VTK_PYRAMID
+    if "C3D6" in et:
+        return (13, 6)   # VTK_WEDGE
+    if "C3D8" in et:
+        return (12, 8)   # VTK_HEXAHEDRON
+    # --- quadratic cells ---
+    if "C3D10" in et:
+        return (24, 10)  # VTK_QUADRATIC_TETRA
+    if "C3D15" in et:
+        return (26, 15)  # VTK_QUADRATIC_WEDGE
+    if "C3D20" in et:
+        return (25, 20)  # VTK_QUADRATIC_HEXAHEDRON
+    # --- 2D / shell ---
+    if "S3" in et or "STRI3" in et:
+        return (5, 3)    # VTK_TRIANGLE
+    if "S4" in et:
+        return (9, 4)    # VTK_QUAD
+    if "S6" in et:
+        return (22, 6)   # VTK_QUADRATIC_TRIANGLE
+    if "S8" in et:
+        return (23, 8)   # VTK_QUADRATIC_QUAD
+    if "S9" in et:
+        return (28, 9)   # VTK_QUADRATIC_QUAD (9-node)
+    # --- membrane ---
+    if "M3D3" in et:
+        return (5, 3)
+    if "M3D4" in et:
+        return (9, 4)
+    # --- beam / truss ---
+    if "B31" in et or "B32" in et or "B33" in et:
+        return (3, 2)    # VTK_LINE
+    if "T2D2" in et or "T2D3" in et:
+        return (3, 2)
+    if "T3D2" in et or "T3D3" in et:
+        return (3, 2)
+    # --- rigid ---
+    if "R2D2" in et:
+        return (3, 2)
+    if "R3D3" in et:
+        return (5, 3)
+    if "R3D4" in et:
+        return (9, 4)
+    raise KeyError("Unsupported element type: %s" % abaqus_element_type)
+ 
+ 
 def _flatten_float64(values):
     buf = bytearray()
     for v in values:
@@ -127,6 +185,137 @@ def _make_data_array_xml(name, binary_data, num_components, offset):
     return el
 
 
+def _write_vtu_ascii(path, points, elem_type_info, num_nodes, point_data, field_outputs_available):
+    """Write VTU file in ASCII format (readable by the web viewer).
+
+    The viewer's vtuparser.js only supports format='ascii' DataArrays,
+    so this writer produces inline ASCII data instead of base64 appended.
+    """
+    conn_list = []
+    offsets_list = []
+    types_list = []
+    for etype, einfo in elem_type_info.items():
+        vtk_type = einfo["vtk_type"]
+        for cell_conn in einfo["connectivity"]:
+            for nid in cell_conn:
+                conn_list.append(nid)
+            offsets_list.append(len(conn_list))
+            types_list.append(vtk_type)
+    num_cells = len(types_list)
+
+    lines = []
+    lines.append('<?xml version="1.0"?>')
+    lines.append('<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">')
+    lines.append("  <UnstructuredGrid>")
+    lines.append('    <Piece NumberOfPoints="%d" NumberOfCells="%d">' % (num_nodes, num_cells))
+
+    # --- PointData ---
+    has_field = False
+    pd_lines = []
+    for fname, finfo in field_outputs_available.items():
+        ncomp = finfo["ncomp"]
+        if fname not in point_data:
+            continue
+        has_field = True
+        vals = point_data[fname]
+        nc_str = ""
+        if ncomp > 1:
+            nc_str = ' NumberOfComponents="%d"' % ncomp
+        pd_lines.append('      <DataArray type="Float64" Name="%s"%s format="ascii">' % (fname, nc_str))
+        chunk = []
+        for v in vals:
+            chunk.append("%.6e" % v)
+            if len(chunk) >= 6:
+                pd_lines.append("        " + " ".join(chunk))
+                chunk = []
+        if chunk:
+            pd_lines.append("        " + " ".join(chunk))
+        pd_lines.append("      </DataArray>")
+    if has_field:
+        lines.append("      <PointData>")
+        lines.extend(pd_lines)
+        lines.append("      </PointData>")
+    else:
+        lines.append("      <PointData/>")
+
+    # --- CellData (empty) ---
+    lines.append("      <CellData/>")
+
+    # --- Points ---
+    lines.append("      <Points>")
+    lines.append('        <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="ascii">')
+    chunk = []
+    for i in range(0, len(points), 3):
+        chunk.append("%.6e %.6e %.6e" % (points[i], points[i+1], points[i+2]))
+        if len(chunk) >= 4:
+            lines.append("          " + " ".join(chunk))
+            chunk = []
+    if chunk:
+        lines.append("          " + " ".join(chunk))
+    lines.append("        </DataArray>")
+    lines.append("      </Points>")
+
+    # --- Cells ---
+    lines.append("      <Cells>")
+    # connectivity
+    lines.append('        <DataArray type="Int32" Name="connectivity" format="ascii">')
+    chunk = []
+    for v in conn_list:
+        chunk.append(str(v))
+        if len(chunk) >= 20:
+            lines.append("          " + " ".join(chunk))
+            chunk = []
+    if chunk:
+        lines.append("          " + " ".join(chunk))
+    lines.append("        </DataArray>")
+    # offsets
+    lines.append('        <DataArray type="Int32" Name="offsets" format="ascii">')
+    chunk = []
+    for v in offsets_list:
+        chunk.append(str(v))
+        if len(chunk) >= 20:
+            lines.append("          " + " ".join(chunk))
+            chunk = []
+    if chunk:
+        lines.append("          " + " ".join(chunk))
+    lines.append("        </DataArray>")
+    # types
+    lines.append('        <DataArray type="Int32" Name="types" format="ascii">')
+    chunk = []
+    for v in types_list:
+        chunk.append(str(v))
+        if len(chunk) >= 20:
+            lines.append("          " + " ".join(chunk))
+            chunk = []
+    if chunk:
+        lines.append("          " + " ".join(chunk))
+    lines.append("        </DataArray>")
+    lines.append("      </Cells>")
+
+    lines.append("    </Piece>")
+    lines.append("  </UnstructuredGrid>")
+    lines.append("</VTKFile>")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def _write_pvd(pvd_path, output_dir, frames_meta, vtu_pattern="frame_%04d.vtu"):
+    """Write a ParaView collection (.pvd) file referencing each frame VTU."""
+    lines = []
+    lines.append('<?xml version="1.0"?>')
+    lines.append('<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">')
+    lines.append("  <Collection>")
+    for fm in frames_meta:
+        fname = vtu_pattern % fm["frame"]
+        t = fm.get("time", 0.0)
+        lines.append('    <DataSet timestep="%s" group="" part="0" file="%s"/>' % (t, fname))
+    lines.append("  </Collection>")
+    lines.append("</VTKFile>")
+    with open(pvd_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def export_odb_to_vtk(
     odb_path,
     output_dir="",
@@ -135,6 +324,10 @@ def export_odb_to_vtk(
     deformation_scale=1.0,
     fields=None,
     binary=True,
+    instance_names=None,
+    ascii_format=False,
+    write_pvd=False,
+    _odb_handle=None,
 ):
     if fields is None:
         fields = ["S", "U", "PEEQ", "RF", "E", "SDV"]
@@ -144,12 +337,17 @@ def export_odb_to_vtk(
         output_dir = os.path.join(os.path.dirname(odb_path), base + "_vtk")
     os.makedirs(output_dir, exist_ok=True)
 
-    import odbAccess
-    from odbAccess import openOdb
+    if _odb_handle is not None:
+        odb = _odb_handle
+        print("[VTK Export] Using provided ODB handle")
+    else:
+        import odbAccess
+        from odbAccess import openOdb
 
-    print("[VTK Export] Opening ODB: %s" % odb_path)
-    odb = openOdb(path=odb_path, readOnly=True)
+        print("[VTK Export] Opening ODB: %s" % odb_path)
+        odb = openOdb(path=odb_path, readOnly=True)
 
+    _need_close = _odb_handle is None
     try:
         steps = list(odb.steps.values())
         if not steps:
@@ -165,42 +363,45 @@ def export_odb_to_vtk(
         selected_frames = all_frames[::frame_step] or [all_frames[-1]]
         last_frame = all_frames[-1]
 
-        # ---- Gather nodes ----
-        instance = odb.rootAssembly.instances[
-            list(odb.rootAssembly.instances.keys())[0]
-        ]
+        # ---- Gather nodes (all instances) ----
+        if instance_names is None:
+            instance_names = list(odb.rootAssembly.instances.keys())
         node_map = {}
         coords_list = []
-        for node in instance.nodes:
-            idx = len(coords_list)
-            node_map[node.label] = idx
-            coords_list.append((node.coordinates[0], node.coordinates[1], node.coordinates[2]))
-        num_nodes = len(coords_list)
-        print("[VTK Export] Nodes: %d" % num_nodes)
-
-        # ---- Gather elements ----
         elem_type_info = {}
         total_cells = 0
-        for elem in instance.elements:
-            etype = elem.type.name
-            if etype not in ELEMENT_TYPE_MAP:
-                if etype not in elem_type_info:
-                    print("[VTK Export] WARNING: Unsupported element type '%s', skipping" % etype)
-                    elem_type_info[etype] = None
-                continue
-            if elem_type_info.get(etype) is None:
-                vtk_type, nn = ELEMENT_TYPE_MAP[etype]
-                elem_type_info[etype] = {
-                    "vtk_type": vtk_type,
-                    "num_nodes": nn,
-                    "connectivity": [],
-                }
-            conn = [node_map[n.label] for n in elem.connectivity]
-            elem_type_info[etype]["connectivity"].append(conn)
-            total_cells += 1
-        print("[VTK Export] Elements: %d in %d types" % (total_cells, len([k for k, v in elem_type_info.items() if v is not None])))
-
+        for iname in instance_names:
+            inst = odb.rootAssembly.instances[iname]
+            for node in inst.nodes:
+                idx = len(coords_list)
+                node_map[(iname, node.label)] = idx
+                coords_list.append((node.coordinates[0], node.coordinates[1], node.coordinates[2]))
+            for elem in inst.elements:
+                etype = elem.type.name
+                vtk_info = ELEMENT_TYPE_MAP.get(etype)
+                if vtk_info is None:
+                    try:
+                        vtk_info = _lookup_vtk_type(etype)
+                    except KeyError:
+                        if etype not in elem_type_info:
+                            print("[VTK Export] WARNING: Unsupported element type '%s', skipping" % etype)
+                            elem_type_info[etype] = None
+                        continue
+                if elem_type_info.get(etype) is None:
+                    vtk_type, nn = vtk_info
+                    elem_type_info[etype] = {
+                        "vtk_type": vtk_type,
+                        "num_nodes": nn,
+                        "connectivity": [],
+                    }
+                conn = [node_map[(iname, n.label)] for n in elem.connectivity]
+                elem_type_info[etype]["connectivity"].append(conn)
+                total_cells += 1
+        num_nodes = len(coords_list)
+        print("[VTK Export] Instances: %s" % instance_names)
+        print("[VTK Export] Nodes: %d, Elements: %d" % (num_nodes, total_cells))
         elem_type_info = {k: v for k, v in elem_type_info.items() if v is not None}
+        print("[VTK Export] Active element types: %s" % list(elem_type_info.keys()))
 
         # ---- Discover field outputs ----
         def _describe_field(fo, fo_name):
@@ -333,14 +534,24 @@ def export_odb_to_vtk(
                     deformed_coords.append(pt[2])
 
             vtu_path = os.path.join(output_dir, "frame_%04d.vtu" % fi)
-            _write_vtu(
-                vtu_path,
-                points=deformed_coords,
-                elem_type_info=elem_type_info,
-                num_nodes=num_nodes,
-                point_data=point_data,
-                field_outputs_available=field_outputs_available,
-            )
+            if ascii_format:
+                _write_vtu_ascii(
+                    vtu_path,
+                    points=deformed_coords,
+                    elem_type_info=elem_type_info,
+                    num_nodes=num_nodes,
+                    point_data=point_data,
+                    field_outputs_available=field_outputs_available,
+                )
+            else:
+                _write_vtu(
+                    vtu_path,
+                    points=deformed_coords,
+                    elem_type_info=elem_type_info,
+                    num_nodes=num_nodes,
+                    point_data=point_data,
+                    field_outputs_available=field_outputs_available,
+                )
 
             frame_field_ranges = {}
             for fname, vals in point_data.items():
@@ -390,13 +601,19 @@ def export_odb_to_vtk(
         with open(model_path, "w", encoding="utf-8") as f:
             json.dump(model_info, f, indent=2, ensure_ascii=False)
 
+        if write_pvd:
+            pvd_path = os.path.join(output_dir, "result.pvd")
+            _write_pvd(pvd_path, output_dir, frames_meta)
+            print("[VTK Export] PVD: %s" % pvd_path)
+
         print("[VTK Export] Done. %d nodes, %d cells, %d frames." % (num_nodes, total_cells, len(selected_frames)))
         print("[VTK Export] Output: %s" % output_dir)
         print("[VTK Export] Index:  %s" % model_path)
         return model_path
 
     finally:
-        odb.close()
+        if _need_close:
+            odb.close()
 
 
 def _write_vtu(path, points, elem_type_info, num_nodes, point_data, field_outputs_available):
