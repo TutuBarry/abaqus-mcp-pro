@@ -105,7 +105,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               加载文件
             </div>
-            <div class="panel-body" id="panel-body-file" style="display:none">
+            <div class="panel-body closed" id="panel-body-file">
               <div class="panel-label">拖放文件或点击选择</div>
               <input type="file" id="file-input" accept=".json,.vtu" class="p-input" multiple>
               <div class="panel-hint">支持 .json + .vtu 多文件上传（可按住 Ctrl 选择多个文件）</div>
@@ -118,7 +118,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               从 ODB 导出
             </div>
-            <div class="panel-body" id="panel-body-odb" style="display:none">
+            <div class="panel-body closed" id="panel-body-odb">
               <div class="panel-label">ODB 文件路径</div>
               <div class="p-row">
                 <input type="text" id="odb-path" class="p-input" placeholder="C:\jobs\my_job.odb">
@@ -175,6 +175,22 @@
                   <span id="opacity-val" class="mono-val">1.0</span>
                 </div>
               </div>
+              <div class="p-gap" id="contour-range-group">
+                <div class="panel-label">云图范围</div>
+                <div class="p-row">
+                  <input type="number" id="contour-min" class="p-input" step="any" placeholder="自动">
+                  <span style="color:var(--text-muted);font-size:10px;align-self:center">~</span>
+                  <input type="number" id="contour-max" class="p-input" step="any" placeholder="自动">
+                  <button class="ctrl-btn" id="btn-contour-reset" title="重置为自动范围" style="padding:4px 6px">自动</button>
+                </div>
+              </div>
+              <div class="p-gap" id="anim-speed-group">
+                <div class="panel-label">动画速度</div>
+                <div class="p-row">
+                  <input type="range" id="anim-speed" min="1" max="20" step="1" value="5" style="flex:1">
+                  <span id="anim-speed-val" class="mono-val">5x</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -184,7 +200,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
               场变量
             </div>
-            <div class="panel-body" id="panel-body-fields" style="display:none">
+            <div class="panel-body closed" id="panel-body-fields">
               <nav id="tree"></nav>
             </div>
           </div>
@@ -195,7 +211,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21l4-4m0 0l7-7m-7 7l-4-4m15 1l-4 4m0 0l-7-7m7 7l4 4"/></svg>
               测量工具
             </div>
-            <div class="panel-body" id="panel-body-measure" style="display:none">
+            <div class="panel-body closed" id="panel-body-measure">
               <div class="ctrl-group">
                 <button class="ctrl-btn active" id="meas-mode-distance" data-mode="distance">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="4"/><line x1="2" y1="4" x2="22" y2="4"/></svg>

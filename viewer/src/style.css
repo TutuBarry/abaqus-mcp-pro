@@ -69,7 +69,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg-app);color:var(--text-
 .panel-header:hover{color:var(--text-secondary)}
 .panel-header svg{opacity:.6;flex-shrink:0;width:13px;height:13px}
 .panel-body{padding:4px 14px 10px}
-.panel-body[style*="display:none"]{display:none!important}
+.panel-body.closed{display:none!important}
 .panel-label{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:4px}
 .panel-hint{font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4}
 
@@ -191,6 +191,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg-app);color:var(--text-
 
 /* ── Selection ── */
 ::selection{background:rgba(233,69,96,0.3);color:#fff}
+
+
+/* ── Clipping Controls ── */
+.clip-pos-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+.clip-pos-row label{font-size:10px;color:var(--text-muted);min-width:12px}
+.clip-pos-row input[type=range]{flex:1;height:2px;accent-color:var(--accent-red);cursor:pointer}
+.clip-val{font-family:var(--font-mono);font-size:9px;color:var(--text-secondary);min-width:28px;text-align:right}
 
 /* ── Responsive ── */
 @media(max-width:700px){

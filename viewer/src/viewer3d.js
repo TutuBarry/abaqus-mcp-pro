@@ -47,6 +47,9 @@ export class Viewer3D {
     this._onPickCallback = null;
     this._onLoadStart = null;
     this._onLoadEnd = null;
+    this._clippingEnabled = false;
+    this._clippingPosition = 0;
+    this._animInterval = 200;
   }
 
   init() {
@@ -274,6 +277,8 @@ export class Viewer3D {
       deformed = false,
       scaleFactor = 1.0,
       colormap = 'jet',
+      fieldMin: optFieldMin,
+      fieldMax: optFieldMax,
     } = options;
 
     this.meshGroup.clear();
@@ -305,6 +310,9 @@ export class Viewer3D {
         fieldMax = fdata.max !== undefined ? fdata.max : (fieldVals ? Math.max(...fieldVals.filter(v => v !== null && v !== undefined)) : 1);
       }
     }
+    // Override with custom contour range if provided
+    if (optFieldMin !== undefined) fieldMin = optFieldMin;
+    if (optFieldMax !== undefined) fieldMax = optFieldMax;
 
     const allBounds = new THREE.Box3();
     let hasGeom = false;
@@ -474,7 +482,7 @@ export class Viewer3D {
   }
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
-    const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0 } = options;
+    const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0, fieldMin: optFieldMin, fieldMax: optFieldMax } = options;
     this.meshGroup.clear();
     this.wireframeGroup.clear();
     // Line group for beams/trusses
@@ -596,8 +604,11 @@ export class Viewer3D {
     }
   }
     const fieldVals = vtuResult.fieldValues;
-    const fieldMin = vtuResult.fieldMin !== undefined ? vtuResult.fieldMin : 0;
-    const fieldMax = vtuResult.fieldMax !== undefined ? vtuResult.fieldMax : 1;
+    let fieldMin = vtuResult.fieldMin !== undefined ? vtuResult.fieldMin : 0;
+    let fieldMax = vtuResult.fieldMax !== undefined ? vtuResult.fieldMax : 1;
+    // Override with custom contour range if provided
+    if (optFieldMin !== undefined) fieldMin = optFieldMin;
+    if (optFieldMax !== undefined) fieldMax = optFieldMax;
     const allBounds = new THREE.Box3();
     const positions = vtuResult.positions;
     const indices = vtuResult.indices;
@@ -748,11 +759,31 @@ export class Viewer3D {
   // ── Clipping ──
 
   toggleClipping() {
+    this._clippingEnabled = !this._clippingEnabled;
+    this._applyClipping();
+  }
+
+  setClippingEnabled(enabled) {
+    this._clippingEnabled = enabled;
+    this._applyClipping();
+  }
+
+  setClippingPosition(value) {
+    this._clippingPosition = value;
+    if (this.clipPlane) {
+      this.clipPlane.constant = value;
+    }
+    if (this._clippingEnabled) {
+      this._applyClipping();
+    }
+  }
+
+  _applyClipping() {
     if (!this.clipPlane) {
       this.clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
     }
-    const enabled = !this._clippingEnabled;
-    this._clippingEnabled = enabled;
+    this.clipPlane.constant = this._clippingPosition;
+    const enabled = this._clippingEnabled;
     if (enabled) {
       this.meshGroup.children.forEach(c => {
         if (c.isMesh) c.material.clippingPlanes = [this.clipPlane];
@@ -763,6 +794,14 @@ export class Viewer3D {
       });
     }
     this.renderer.localClippingEnabled = true;
+  }
+
+  isClippingEnabled() {
+    return this._clippingEnabled;
+  }
+
+  getClippingPosition() {
+    return this._clippingPosition;
   }
 
   // ── Opacity ──

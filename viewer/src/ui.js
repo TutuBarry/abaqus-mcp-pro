@@ -11,6 +11,9 @@ export class UIController {
     this.viewer = viewer;
     this.state = state;
     this.panels = { file: false, odb: false, display: true, fields: false, measure: false };
+    this._contourCustomMin = null;
+    this._contourCustomMax = null;
+    this._animSpeed = 5;
     this.measure = new MeasureTool(viewer);
     this.progress = new ProgressLoader('progress-overlay');
   }
@@ -32,6 +35,9 @@ export class UIController {
     this._bindToolbar();
     this._bindProbe();
     this._bindLoopMode();
+    this._bindContourRange();
+    this._bindAnimSpeed();
+    this._bindClippingPosition();
     this._enhanceColormapPicker();
   }
 
@@ -536,6 +542,8 @@ export class UIController {
   async _rebuild() {
     if (!this.state.data) return;
     const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName };
+    if (this._contourCustomMin !== null) opts.fieldMin = this._contourCustomMin;
+    if (this._contourCustomMax !== null) opts.fieldMax = this._contourCustomMax;
     if (this.state.format === 'v3.0') {
       await this.viewer.buildSceneFromVTU(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     } else {
@@ -671,15 +679,23 @@ export class UIController {
     }
 
     let fmin = 0, fmax = 1;
-    const fieldKey = this.state.currentField.key || this.state.currentField.name;
-    if (this.state.format === 'v3.0' && this.viewer._lastVtuResult && this.viewer._lastVtuResult.fieldValues) {
-      const valid = this.viewer._lastVtuResult.fieldValues.filter((v) => v != null && !isNaN(v));
-      if (valid.length > 0) { fmin = Math.min(...valid); fmax = Math.max(...valid); }
-    } else if (this.state.data) {
-      const frame = (this.state.data.frames || [])[this.state.currentFrame];
-      if (frame && frame[fieldKey]) {
-        fmin = frame[fieldKey].min !== undefined ? frame[fieldKey].min : 0;
-        fmax = frame[fieldKey].max !== undefined ? frame[fieldKey].max : 1;
+    // Use custom contour range if set
+    if (this._contourCustomMin !== null) fmin = this._contourCustomMin;
+    if (this._contourCustomMax !== null) fmax = this._contourCustomMax;
+    if ((this._contourCustomMin === null || this._contourCustomMax === null) && this.state.data) {
+      const fieldKey = this.state.currentField.key || this.state.currentField.name;
+      if (this.state.format === 'v3.0' && this.viewer._lastVtuResult && this.viewer._lastVtuResult.fieldValues) {
+        const valid = this.viewer._lastVtuResult.fieldValues.filter((v) => v != null && !isNaN(v));
+        if (valid.length > 0) {
+          if (this._contourCustomMin === null) fmin = Math.min(...valid);
+          if (this._contourCustomMax === null) fmax = Math.max(...valid);
+        }
+      } else if (this.state.data) {
+        const frame = (this.state.data.frames || [])[this.state.currentFrame];
+        if (frame && frame[fieldKey]) {
+          if (this._contourCustomMin === null) fmin = frame[fieldKey].min !== undefined ? frame[fieldKey].min : 0;
+          if (this._contourCustomMax === null) fmax = frame[fieldKey].max !== undefined ? frame[fieldKey].max : 1;
+        }
       }
     }
 
@@ -743,6 +759,83 @@ export class UIController {
       setTimeout(() => el.remove(), 300);
     }, 3000);
   }
+
+  /* ── Contour Range Controls ── */
+  _bindContourRange() {
+    const minInput = document.getElementById('contour-min');
+    const maxInput = document.getElementById('contour-max');
+    const resetBtn = document.getElementById('btn-contour-reset');
+    if (!minInput || !maxInput || !resetBtn) return;
+
+    const apply = () => {
+      const minVal = minInput.value !== '' ? parseFloat(minInput.value) : null;
+      const maxVal = maxInput.value !== '' ? parseFloat(maxInput.value) : null;
+      this._contourCustomMin = minVal;
+      this._contourCustomMax = maxVal;
+      this._rebuild();
+    };
+
+    minInput.addEventListener('change', apply);
+    maxInput.addEventListener('change', apply);
+    resetBtn.addEventListener('click', () => {
+      minInput.value = '';
+      maxInput.value = '';
+      this._contourCustomMin = null;
+      this._contourCustomMax = null;
+      this._rebuild();
+    });
+  }
+
+  /* ── Animation Speed Control ── */
+  _bindAnimSpeed() {
+    const slider = document.getElementById('anim-speed');
+    const val = document.getElementById('anim-speed-val');
+    if (!slider || !val) return;
+    slider.addEventListener('input', () => {
+      this._animSpeed = parseInt(slider.value);
+      val.textContent = this._animSpeed + 'x';
+      this.viewer._animInterval = Math.max(30, Math.round(200 / this._animSpeed));
+    });
+  }
+
+  /* ── Clipping Position Control ── */
+  _bindClippingPosition() {
+    const btnClip = document.getElementById('btn-clip');
+    // Create clipping position slider after the clip button
+    const container = btnClip ? btnClip.closest('.ctrl-group') : null;
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'clip-pos-row';
+    row.id = 'clip-pos-row';
+    row.style.cssText = 'display:none;margin-top:6px';
+    row.innerHTML =
+      '<label>Z</label>' +
+      '<input type="range" id="clip-position" min="-1" max="1" step="0.01" value="0" style="flex:1">' +
+      '<span class="clip-val" id="clip-position-val">0.00</span>';
+    container.after(row);
+
+    const clipSlider = document.getElementById('clip-position');
+    const clipVal = document.getElementById('clip-position-val');
+
+    // Show slider when clipping enabled
+    const origClick = btnClip._listeners ? btnClip._listeners.click : null;
+    const checkClip = () => {
+      const enabled = this.viewer.isClippingEnabled();
+      row.style.display = enabled ? 'flex' : 'none';
+    };
+
+    // Observe clipping state
+    const origToggle = btnClip.click.bind(btnClip);
+    btnClip.addEventListener('click', () => {
+      setTimeout(checkClip, 50);
+    });
+
+    clipSlider.addEventListener('input', () => {
+      const v = parseFloat(clipSlider.value);
+      clipVal.textContent = v.toFixed(2);
+      this.viewer.setClippingPosition(v);
+    });
+  }
+
 }
-
-
