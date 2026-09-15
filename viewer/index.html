@@ -22,8 +22,8 @@
         <button class="p-btn" id="welcome-open-file">打开文件</button>
       </div>
       <div class="welcome-hints">
-        <span>拖放 .vtu / .json 文件到窗口</span>
-        <span>支持 ODB 直连导出 (需 Abaqus)</span>
+        <span>拖放 .json/.vtu 文件到窗口</span>
+        <span>ODB 直连导出 / 服务器加载 VTU (需 Abaqus)</span>
       </div>
     </div>
   </div>
@@ -107,8 +107,8 @@
             </div>
             <div class="panel-body" id="panel-body-file" style="display:none">
               <div class="panel-label">拖放文件或点击选择</div>
-              <input type="file" id="file-input" accept=".json,.vtu" class="p-input">
-              <div class="panel-hint">支持 result_mesh.json / .vtu 格式</div>
+              <input type="file" id="file-input" accept=".json,.vtu" class="p-input" multiple>
+              <div class="panel-hint">支持 .json + .vtu 多文件上传（可按住 Ctrl 选择多个文件）</div>
             </div>
           </div>
 

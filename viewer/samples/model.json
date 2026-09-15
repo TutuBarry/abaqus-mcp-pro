@@ -35,17 +35,17 @@
     {
       "frame": 0,
       "time": 0.0,
-      "vtu_file": "samples/frame_0000.vtu"
+      "vtu_file": "frame_0000.vtu"
     },
     {
       "frame": 1,
       "time": 0.5,
-      "vtu_file": "samples/frame_0001.vtu"
+      "vtu_file": "frame_0001.vtu"
     },
     {
       "frame": 2,
       "time": 1.0,
-      "vtu_file": "samples/frame_0002.vtu"
+      "vtu_file": "frame_0002.vtu"
     }
   ]
 }

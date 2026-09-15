@@ -193,7 +193,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg-app);color:var(--text-
 ::selection{background:rgba(233,69,96,0.3);color:#fff}
 
 /* ── Responsive ── */
-edia(max-width:700px){
+@media(max-width:700px){
   #sidebar.open{width:100vw;min-width:100vw;position:absolute;left:44px;top:44px;bottom:0;z-index:20}
   #anim-bar input[type=range]{width:60px}
   #toolbar{top:8px;left:8px}
@@ -276,5 +276,4 @@ edia(max-width:700px){
 }
 
 /* ── Responsive fixes ── */
-
 

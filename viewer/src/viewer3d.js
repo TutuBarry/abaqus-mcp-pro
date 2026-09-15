@@ -38,6 +38,7 @@ export class Viewer3D {
     this.clipPlane = null;
     this.animFrameId = null;
     this._disposed = false;
+    this._fileCache = null;  // Map<filename, text> for uploaded VTU files
     this.labelRenderer = null;
     this.axisScene = null;
     this.axisCamera = null;
@@ -363,13 +364,76 @@ export class Viewer3D {
   // ── VTU-based scene building ──
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
-    const { field = null, colormap = 'jet' } = options;
+    const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0 } = options;
     this.meshGroup.clear();
     this.wireframeGroup.clear();
     // Line group for beams/trusses
     this._lineGroup = this._lineGroup || new THREE.Group();
     if (this._lineGroup.parent) this._lineGroup.parent.remove(this._lineGroup);
     this._lineGroup = new THREE.Group();
+
+    // ── Handle model.json metadata (format_version + frames) ──
+    if (
+      typeof vtuUrlOrData === 'object' &&
+      vtuUrlOrData !== null &&
+      vtuUrlOrData.format_version &&
+      Array.isArray(vtuUrlOrData.frames)
+    ) {
+      const frames = vtuUrlOrData.frames;
+      const frameEntry = frames[frameIdx] || frames[0];
+      if (!frameEntry || !frameEntry.vtu_file) {
+        console.error('VTU: no frame file for index', frameIdx, 'frames:', frames.length);
+        this._showDropOverlay(true);
+        return;
+      }
+
+      // Resolve VTU file path
+      let vtuUrl = frameEntry.vtu_file;
+      // If vtu_file is relative, resolve against _baseUrl or server root
+      if (!vtuUrl.startsWith('/') && !vtuUrl.startsWith('http') && !vtuUrl.startsWith('file:')) {
+        if (vtuUrlOrData._baseUrl) {
+          const base = vtuUrlOrData._baseUrl;
+          const lastSlash = base.lastIndexOf('/');
+          const baseDir = lastSlash >= 0 ? base.substring(0, lastSlash + 1) : '';
+          vtuUrl = baseDir + vtuUrl;
+        } else {
+          vtuUrl = '/' + vtuUrl;
+        }
+      }
+
+      // Resolve VTU filename for cache lookup
+      const vtuFilename = frameEntry.vtu_file.split('/').pop().split('\\').pop();
+
+      // Check file cache (uploaded VTU files)
+      let text = null;
+      if (this._fileCache && this._fileCache.has(vtuFilename)) {
+        text = this._fileCache.get(vtuFilename);
+      } else {
+        try {
+          const resp = await fetch(vtuUrl);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          text = await resp.text();
+        } catch (e) {
+          console.error('VTU fetch/parse failed:', vtuUrl, e);
+          if (typeof vtuUrlOrData === 'object' && vtuUrlOrData._baseUrl) {
+            console.warn('Uploaded model.json: VTU files not found in upload or on server.');
+          }
+          this._showDropOverlay(true);
+          return;
+        }
+      }
+
+      try {
+        const fieldName = field ? (field.key || field.name) : undefined;
+        const parsed = parseVTU(text, fieldName ? { fieldName } : {});
+        parsed._metadata = vtuUrlOrData;
+        vtuUrlOrData = parsed;
+      } catch (e) {
+        console.error('VTU parse failed:', e);
+        this._showDropOverlay(true);
+        return;
+      }
+    }
 
     let vtuResult;
     if (typeof vtuUrlOrData === 'string') {
@@ -389,6 +453,38 @@ export class Viewer3D {
     if (!vtuResult || vtuResult.positions.length === 0) { this._showDropOverlay(true); return; }
     this._showDropOverlay(false);
     this._lastVtuResult = vtuResult;
+
+  // -- Deformation toggle for VTU v3.0 (with U 3-component vector) --
+  if (vtuResult._metadata && vtuResult._metadata.deformation_scale_factor !== undefined &&
+      vtuResult.vectorFields && vtuResult.vectorFields["U"]) {
+    const exportScale = vtuResult._metadata.deformation_scale_factor;
+    const uData = vtuResult.vectorFields["U"].values;
+    const nNodes = vtuResult.positions.length / 3;
+
+    // Compute undeformed: initial = positions - U * exportScale
+    const undeformed = new Float32Array(vtuResult.positions.length);
+    for (let i = 0; i < nNodes; i++) {
+      const b = i * 3;
+      undeformed[b]     = vtuResult.positions[b]     - uData[b]     * exportScale;
+      undeformed[b + 1] = vtuResult.positions[b + 1] - uData[b + 1] * exportScale;
+      undeformed[b + 2] = vtuResult.positions[b + 2] - uData[b + 2] * exportScale;
+    }
+
+    if (deformed && scaleFactor > 0) {
+      // Render deformed: initial + U * scaleFactor
+      const renderPos = new Float32Array(vtuResult.positions.length);
+      for (let i = 0; i < nNodes; i++) {
+        const b = i * 3;
+        renderPos[b]     = undeformed[b]     + uData[b]     * scaleFactor;
+        renderPos[b + 1] = undeformed[b + 1] + uData[b + 1] * scaleFactor;
+        renderPos[b + 2] = undeformed[b + 2] + uData[b + 2] * scaleFactor;
+      }
+      vtuResult.positions = renderPos;
+    } else {
+      // Render undeformed
+      vtuResult.positions = undeformed;
+    }
+  }
     const fieldVals = vtuResult.fieldValues;
     const fieldMin = vtuResult.fieldMin !== undefined ? vtuResult.fieldMin : 0;
     const fieldMax = vtuResult.fieldMax !== undefined ? vtuResult.fieldMax : 1;

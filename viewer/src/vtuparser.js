@@ -33,7 +33,7 @@ const VTK_CELL_NODES = {
  * @param {string} text - VTU file content
  * @param {object} options
  * @param {string} options.fieldName - exact Name attribute to select (optional)
- * @returns {object} { positions, indices, lines, cellTypes, fieldValues, fieldMin, fieldMax }
+ * @returns {object} { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax, vectorFields }
  */
 export function parseVTU(text, options = {}) {
   const { fieldName } = options;
@@ -75,6 +75,7 @@ export function parseVTU(text, options = {}) {
   let fieldValues = null;
   let fieldMin = 0;
   let fieldMax = 1;
+  const vectorFields = {};
 
   let pdEl = null;
   if (fieldName) {
@@ -111,6 +112,21 @@ export function parseVTU(text, options = {}) {
     }
   }
 
+  // Extract all multi-component vector fields (e.g. U: 3-component displacement)
+  const allPdArrays = root.querySelectorAll('PointData DataArray');
+  allPdArrays.forEach(arr => {
+    const nc = parseInt(arr.getAttribute('NumberOfComponents') || '1');
+    if (nc > 1) {
+      const name = arr.getAttribute('Name');
+      if (name) {
+        vectorFields[name] = {
+          values: parseDataArray(arr),
+          ncomp: nc,
+        };
+      }
+    }
+  });
+
   // Convert cells to triangle indices and line segments
   const indices = [];
   const lines = [];
@@ -129,7 +145,7 @@ export function parseVTU(text, options = {}) {
     cursor = end;
   }
 
-  return { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax };
+  return { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax, vectorFields };
 }
 
 function triangulateCell(cell, cellType, indices, lines) {

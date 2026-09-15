@@ -154,9 +154,76 @@ export class UIController {
   /* ── File Input ── */
   _bindFileInput() {
     document.getElementById('file-input').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) this._loadFile(file);
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        if (files.length === 1) {
+          this._loadFile(files[0]);
+        } else {
+          this._loadFiles(files);
+        }
+      }
     });
+  }
+
+  async _loadFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const jsonFiles = [];
+    const vtuFiles = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (f.name.endsWith('.json')) jsonFiles.push(f);
+      else if (f.name.endsWith('.vtu')) vtuFiles.push(f);
+    }
+    if (jsonFiles.length === 0) {
+      this._toast('请至少选择一个 JSON 模型文件', 'error');
+      return;
+    }
+    // Build VTU file cache
+    const fileCache = new Map();
+    for (const vf of vtuFiles) {
+      try {
+        const text = await vf.text();
+        fileCache.set(vf.name, text);
+      } catch (e) {
+        console.warn('Failed to read VTU file:', vf.name, e);
+      }
+    }
+    if (fileCache.size > 0) {
+      this.viewer._fileCache = fileCache;
+    }
+    // Load first JSON file
+    for (const jf of jsonFiles) {
+      try {
+        const text = await jf.text();
+        let data;
+        try { data = JSON.parse(text); } catch (_) {
+          this.viewer._fileCache = null;
+          throw new Error('不是有效的 JSON 文件');
+        }
+        data._baseUrl = window.location.href;
+        this.state.data = data;
+        const fmt = data.format_version || 'v1.0';
+        this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
+        this.state.currentFrame = 0;
+        this.state.currentField = (data.fields || [])[0] || null;
+        this.state.deformation_scale_factor = data.deformation_scale_factor || 1.0;
+        this.state.scaleFactor = data.deformation_scale_factor || 1.0;
+        const opts = { frameIdx: 0, field: this.state.currentField, colormap: this.state.colormapName, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor };
+        if (this.state.format === 'v3.0') {
+          await this.viewer.buildSceneFromVTU(data, opts);
+        } else {
+          this.viewer.buildScene(data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
+        }
+        this._updateAll(data);
+        this._setFileBadge(jf.name);
+        this._updateStatus('已加载: ' + jf.name);
+        this._toast('加载成功: ' + jf.name, 'success');
+        return; // Only load first JSON
+      } catch (e) {
+        this._updateStatus('加载失败: ' + e.message);
+        this._toast('加载失败: ' + e.message, 'error');
+      }
+    }
   }
 
   async _loadFile(file) {
@@ -168,6 +235,10 @@ export class UIController {
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
       this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
+      // Warn if uploaded v3.0 model.json references VTU files (not available via upload)
+      if (this.state.format === "v3.0" && Array.isArray(data.frames) && data.frames.some(function(f) { return f.vtu_file; })) {
+        this._toast("\u26a0 VTU files must be loaded from server; upload only works for v1.0 JSON format", "warning");
+      }
       this.state.currentFrame = 0;
       this.state.currentField = (data.fields || [])[0] || null;
       this.state.deformation_scale_factor = data.deformation_scale_factor || 1.0;
@@ -462,11 +533,11 @@ export class UIController {
     }
   }
 
-  _rebuild() {
+  async _rebuild() {
     if (!this.state.data) return;
     const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName };
     if (this.state.format === 'v3.0') {
-      this.viewer.buildSceneFromVTU(this.state.data, opts);
+      await this.viewer.buildSceneFromVTU(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     } else {
       this.viewer.buildScene(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     }
@@ -492,6 +563,7 @@ export class UIController {
     const frames = data.frames || data.frame_files || [];
     let totalElems = 0;
     for (const arr of Object.values(elems)) totalElems += (arr || []).length;
+    if (totalElems === 0 && data.num_elements) totalElems = data.num_elements;
 
     if (this.state.format === 'v3.0') {
       const stats = this.viewer.getVtuStats();
@@ -541,18 +613,23 @@ export class UIController {
     addSection('模型');
     const nodes = data.nodes || [];
     const elems = data.elements || {};
+    const elemTypes = data.element_types || {};
     let totalElems = 0;
     for (const arr of Object.values(elems)) totalElems += (arr || []).length;
+    // v3.0 VTU format uses num_elements at top level
+    if (this.state.format === 'v3.0' && totalElems === 0) {
+      totalElems = data.num_elements || 0;
+    }
 
     if (this.state.format === 'v3.0') {
       const stats = this.viewer.getVtuStats();
-      addItem('◈', '节点: ' + (stats.nodes || 0).toLocaleString());
+      addItem('◈', '节点: ' + (data.num_nodes || stats.nodes || 0).toLocaleString());
     } else {
       addItem('◈', '节点: ' + Math.max(0, (nodes.length - 1)).toLocaleString());
     }
     addItem('◇', '单元: ' + totalElems.toLocaleString());
 
-    const etList = Object.keys(elems);
+    const etList = Object.keys(elems).length > 0 ? Object.keys(elems) : Object.keys(elemTypes);
     if (etList.length > 0) {
       const badge = document.createElement('div');
       badge.className = 'tree-item';
@@ -560,7 +637,8 @@ export class UIController {
       tree.appendChild(badge);
     }
     for (const et of etList) {
-      addItem('—', et + ': ' + (elems[et] || []).length.toLocaleString());
+      const etCount = elems[et] ? (elems[et] || []).length : (elemTypes[et] ? elemTypes[et].count || 0 : 0);
+      addItem('—', et + ': ' + etCount.toLocaleString());
     }
 
     addSection('分析步');

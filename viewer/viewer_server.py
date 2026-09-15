@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""FastAPI server for Abaqus MCP Pro 3D Viewer.
+"""FastAPI server for Abaqus MCP Pro 3D Viewer. [DEPRECATED]
+
+Use serve_viewer.py instead (simpler, no dependencies).
 
 Usage:
     uvicorn viewer_server:app --host 0.0.0.0 --port 8080 --reload
     python viewer_server.py
 """
 
+import warnings
+warnings.warn(
+    "viewer_server.py is deprecated. Use serve_viewer.py instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from __future__ import annotations
+
 import json, os, subprocess, sys, time, uuid, threading
 from pathlib import Path
 
