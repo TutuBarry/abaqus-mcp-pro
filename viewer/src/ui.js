@@ -44,7 +44,7 @@ export class UIController {
       const data = await resp.json();
       data._baseUrl = url;
       this.state.data = data;
-      const fmt = data.format_version || 'v1.0';
+      const fmt = String(data.format_version || 'v1.0');
       this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
       this.state.currentFrame = 0;
       this.state.currentField = (data.fields || [])[0] || null;
@@ -202,7 +202,7 @@ export class UIController {
         }
         data._baseUrl = window.location.href;
         this.state.data = data;
-        const fmt = data.format_version || 'v1.0';
+        const fmt = String(data.format_version || 'v1.0');
         this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
         this.state.currentFrame = 0;
         this.state.currentField = (data.fields || [])[0] || null;
@@ -233,7 +233,7 @@ export class UIController {
       try { data = JSON.parse(text); } catch (_) { throw new Error('不是有效的 JSON 文件'); }
       data._baseUrl = window.location.href;
       this.state.data = data;
-      const fmt = data.format_version || 'v1.0';
+      const fmt = String(data.format_version || 'v1.0');
       this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
       // Warn if uploaded v3.0 model.json references VTU files (not available via upload)
       if (this.state.format === "v3.0" && Array.isArray(data.frames) && data.frames.some(function(f) { return f.vtu_file; })) {

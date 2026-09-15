@@ -128,6 +128,12 @@ export class Viewer3D {
     this._buildAxisIndicator();
   }
 
+  /* ── Drop Zone Overlay ── */
+  _showDropOverlay(show) {
+    const el = document.getElementById("drop-zone");
+    if (el) el.classList.toggle("hidden", !show);
+  }
+
   /* ── Environment Map Generation ── */
   _generateEnvMap() {
     try {
@@ -361,7 +367,111 @@ export class Viewer3D {
   }
 
 
-  // ── VTU-based scene building ──
+ // ── VTU-based scene building ──
+  /**
+   * Build geometry from node/element data.
+   * Converts hex/tet/wedge elements to triangle meshes with optional deformation and field coloring.
+   */
+  _buildGeom(nodes, conn, etype, npe, disp, scaleFactor, fieldVals, fieldMin, fieldMax, colormap) {
+    const positions = [];
+    const indices = [];
+    const colors = [];
+    const minPt = [Infinity, Infinity, Infinity];
+    const maxPt = [-Infinity, -Infinity, -Infinity];
+    let idx = 0;
+    const hasDisp = !!(disp && disp.length >= nodes.length);
+
+    // Face definitions per element type (indices into element connectivity)
+    const FACE_DEFS = {
+      8: [ // C3D8 hexahedron: 6 quad faces
+        [0,1,2,3], [4,7,6,5], [0,4,5,1],
+        [1,5,6,2], [2,6,7,3], [3,7,4,0]
+      ],
+      4: [ // C3D4 tetrahedron: 4 triangle faces
+        [0,1,3], [1,2,3], [2,0,3], [0,2,1]
+      ],
+      6: [ // C3D6 wedge: 3 quad + 2 triangle faces
+        [0,1,4,3], [1,2,5,4], [2,0,3,5], [0,2,1], [3,4,5]
+      ],
+    };
+
+    const faces = FACE_DEFS[npe] || FACE_DEFS[8];
+
+    for (let ei = 0; ei < conn.length; ei++) {
+      const elem = conn[ei];
+      for (const face of faces) {
+        // Get vertices for this face
+        const vi = [face[0], face[1], face[2]];
+        if (face.length === 4) vi.push(face[3]);
+
+        // Triangle 1: (v0, v1, v2)
+        for (let t = 0; t < 2; t++) {
+          const a = t === 0 ? vi[0] : vi[0];
+          const b = t === 0 ? vi[1] : vi[2];
+          const c = t === 0 ? vi[2] : vi[3];
+          if (c === undefined) break;
+
+          for (const v of [a, b, c]) {
+            const nodeIdx = elem[v] - 1;  // Abaqus 1-based to 0-based
+            if (nodeIdx < 0 || nodeIdx >= nodes.length) continue;
+            const nx = nodes[nodeIdx][0];
+            const ny = nodes[nodeIdx][1];
+            const nz = nodes[nodeIdx][2];
+
+            let px = nx, py = ny, pz = nz;
+            if (hasDisp) {
+              px += disp[nodeIdx][0] * scaleFactor;
+              py += disp[nodeIdx][1] * scaleFactor;
+              pz += disp[nodeIdx][2] * scaleFactor;
+            }
+            positions.push(px, py, pz);
+
+            if (px < minPt[0]) minPt[0] = px;
+            if (py < minPt[1]) minPt[1] = py;
+            if (pz < minPt[2]) minPt[2] = pz;
+            if (px > maxPt[0]) maxPt[0] = px;
+            if (py > maxPt[1]) maxPt[1] = py;
+            if (pz > maxPt[2]) maxPt[2] = pz;
+
+            indices.push(idx++);
+
+            if (fieldVals) {
+              const fv = fieldVals[nodeIdx] != null ? fieldVals[nodeIdx] : 0;
+              const tVal = fieldMax > fieldMin ? (fv - fieldMin) / (fieldMax - fieldMin) : 0.5;
+              const rgb = this._colormapValue(colormap || 'jet', Math.max(0, Math.min(1, tVal)));
+              colors.push(rgb[0], rgb[1], rgb[2]);
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      positions,
+      indices,
+      colors: colors.length > 0 ? colors : null,
+      bounds: {
+        min: new THREE.Vector3(minPt[0], minPt[1], minPt[2]),
+        max: new THREE.Vector3(maxPt[0], maxPt[1], maxPt[2]),
+      },
+    };
+  }
+
+  /**
+   * Evaluate colormap at normalized position t in [0,1].
+   * Returns [r, g, b] in 0-1 range.
+   */
+  _colormapValue(name, t) {
+    // Use the imported sampleColormap function directly
+    try {
+      return sampleColormap(name, t);
+    } catch (_) {}
+    // Fallback: simple gradient
+    const r = t < 0.5 ? 0 : (t - 0.5) * 2;
+    const g = t < 0.5 ? t * 2 : 2 - t * 2;
+    const b = t < 0.5 ? 1 - t * 2 : 0;
+    return [r, g, b];
+  }
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
     const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0 } = options;

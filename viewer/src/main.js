@@ -50,5 +50,8 @@ document.getElementById("welcome-open-file").addEventListener("click", () => {
   if (fileInput) fileInput.click();
 });
 
-window.__viewer = { viewer, state, ui, odb };
-console.log("ABAQUS MCP Pro Viewer 3.0 ready");
+ window.__viewer = { viewer, state, ui, odb };
+ console.log("ABAQUS MCP Pro Viewer 3.0 ready");
+  (async () => {
+    await ui.loadSample("samples/model.json");
+  })();
