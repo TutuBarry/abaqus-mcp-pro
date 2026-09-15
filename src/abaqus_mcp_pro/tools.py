@@ -1315,12 +1315,129 @@ async def converge_advice(
         )
 
 
+
+async def odb_open(
+    path: str,
+    read_only: bool = True,
+    timeout: float | None = None,
+) -> str:
+    """Open an ODB file directly via the bridge and return structured metadata.
+
+    Unlike run_python-based approaches, this keeps the ODB handle managed
+    by the bridge for proper lifecycle tracking.
+    """
+    if not path.strip():
+        raise ValueError("path must not be empty")
+    result = await _bridge_request("odb_open", {"path": path.strip(), "read_only": read_only}, timeout or 60.0)
+    return _json_string(result)
+
+
+async def odb_close(
+    handle: str = "",
+    path: str = "",
+    timeout: float | None = None,
+) -> str:
+    """Close an open ODB by handle or path.
+
+    Args:
+        handle: ODB handle returned by odb_open.
+        path: ODB path (alternative to handle).
+    """
+    if not handle and not path:
+        raise ValueError("Provide either handle or path")
+    params: dict[str, Any] = {}
+    if handle:
+        params["handle"] = handle
+    if path:
+        params["path"] = path
+    result = await _bridge_request("odb_close", params, timeout or 30.0)
+    return _json_string(result)
+
+
+async def odb_list(timeout: float | None = None) -> str:
+    """List all ODB files currently open in the bridge with their handles."""
+    result = await _bridge_request("odb_list", {}, timeout or 10.0)
+    return _json_string(result)
+
+
+async def odb_summary(
+    handle: str,
+    timeout: float | None = None,
+) -> str:
+    """Get detailed step/frame/field info for an open ODB by handle."""
+    if not handle.strip():
+        raise ValueError("handle must not be empty")
+    result = await _bridge_request("odb_summary", {"handle": handle.strip()}, timeout or 30.0)
+    return _json_string(result)
+
+
+async def get_mdb_info(timeout: float | None = None) -> str:
+    """Get structured information about all models, parts, materials, steps, and jobs.
+
+    Unlike get_model_info (which wraps run_python), this uses the bridge's
+    structured mdb_info method for cleaner data.
+    """
+    result = await _bridge_request("mdb_info", {}, timeout or 30.0)
+    return _json_string(result)
+
+
+async def bridge_extract_field(
+    handle: str,
+    field_name: str = "S",
+    step_index: int = -1,
+    frame_index: int = -1,
+    timeout: float | None = None,
+) -> str:
+    """Extract field data from an open ODB without writing Python strings.
+
+    Args:
+        handle: ODB handle from odb_open.
+        field_name: Field output name (e.g., "S", "U", "PEEQ", "RF").
+        step_index: Step index (-1 = last).
+        frame_index: Frame index (-1 = last).
+
+    Returns:
+        JSON with node/element field values.
+    """
+    if not handle.strip():
+        raise ValueError("handle must not be empty")
+    result = await _bridge_request("extract_field", {
+        "handle": handle.strip(),
+        "field_name": field_name,
+        "step_index": step_index,
+        "frame_index": frame_index,
+    }, timeout or 60.0)
+    return _json_string(result)
+
+
+async def bridge_cleanup(timeout: float | None = None) -> str:
+    """Close all open ODBs and clean up bridge state."""
+    result = await _bridge_request("cleanup", {}, timeout or 30.0)
+    return _json_string(result)
+
+
+async def bridge_reset(timeout: float | None = None) -> str:
+    """Full reset: close ODBs, clear kernel namespace."""
+    result = await _bridge_request("reset", {}, timeout or 30.0)
+    return _json_string(result)
+
+
 def register_tools(mcp) -> None:
     # Inject run_python into aba_utils
     _set_run_python(run_python)
     _set_run_python_ext(run_python)
 
     """Register all MCP tools with the given MCPServer instance."""
+    # ── Structured Bridge API tools (no string-building) ──
+    mcp_tool(odb_open)
+    mcp_tool(odb_close)
+    mcp_tool(odb_list)
+    mcp_tool(odb_summary)
+    mcp_tool(get_mdb_info)
+    mcp_tool(bridge_extract_field)
+    mcp_tool(bridge_cleanup)
+    mcp_tool(bridge_reset)
+
     mcp_tool = mcp.tool()
 
     mcp_tool(ping)

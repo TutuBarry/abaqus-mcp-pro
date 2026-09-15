@@ -28,6 +28,17 @@ _GLOBALS: dict[str, Any] = {
     "__doc__": None,
 }
 _EXEC_LOCK = threading.Lock()
+# ── Optional auth token (set via env ABAQUS_MCP_TOKEN) ──
+_AUTH_TOKEN: str | None = None
+import os as _os
+_ENV_TOKEN = _os.environ.get("ABAQUS_MCP_TOKEN")
+if _ENV_TOKEN:
+    _AUTH_TOKEN = _ENV_TOKEN
+
+# ── ODB session management ──
+_OPEN_ODBS: dict[str, Any] = {}  # handle -> odb object
+_ODB_HANDLE_COUNTER = 0
+_ODB_LOCK = threading.Lock()
 
 
 def _jsonable(value: Any) -> Any:
@@ -545,7 +556,14 @@ def _send_message(request: socketserver.BaseRequestHandler, payload: dict[str, A
 _MAX_OUTPUT = 1_000
 
 
-def _execute(code: str) -> dict[str, Any]:
+_READ_LOCK = threading.Lock()
+
+def _execute(code: str, read_only: bool = False) -> dict[str, Any]:
+    """Execute Python code in Abaqus kernel.
+
+    If read_only=True, uses a shared lock instead of the exclusive lock,
+    allowing concurrent read-only queries.
+    """
     stdout = io.StringIO()
     stderr = io.StringIO()
     namespace = _GLOBALS
@@ -559,7 +577,10 @@ def _execute(code: str) -> dict[str, Any]:
     else:
         namespace.update({"mdb": mdb, "session": session})
 
-    with _EXEC_LOCK, contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+    # Use shared lock for read_only, exclusive lock for write
+    lock: threading.Lock = _READ_LOCK if read_only else _EXEC_LOCK  # type: ignore[assignment]
+
+    with lock, contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
         try:
             try:
                 parsed = ast.parse(code, mode="eval")
@@ -595,13 +616,253 @@ def _execute(code: str) -> dict[str, Any]:
 
 
 def _ping() -> dict[str, Any]:
-    return {
+    info: dict[str, Any] = {
         "python": sys.version,
         "executable": sys.executable,
         "platform": platform.platform(),
         "thread": threading.current_thread().name,
+        "open_odbs": list(_OPEN_ODBS.keys()),
+        "globals_size": len(_GLOBALS),
+    }
+    # Try to get Abaqus-specific info without importing if not available
+    try:
+        from abaqus import mdb, session  # type: ignore
+        info["models"] = list(mdb.models.keys())
+        info["viewports"] = list(session.viewports.keys()) if hasattr(session, "viewports") else []
+        info["jobs"] = list(mdb.jobs.keys())
+        # Try to get Abaqus version
+        try:
+            import abaqus
+            info["abaqus_version"] = getattr(abaqus, "version", "unknown")
+        except Exception:
+            pass
+    except ImportError:
+        pass
+    return info
+
+
+
+# ── Structured Bridge API ──
+
+def _generate_odb_handle() -> str:
+    global _ODB_HANDLE_COUNTER
+    with _ODB_LOCK:
+        _ODB_HANDLE_COUNTER += 1
+        return f"odb_{_ODB_HANDLE_COUNTER:04d}"
+
+
+def _odb_open(params: dict[str, Any]) -> dict[str, Any]:
+    """Open an ODB file and return a handle with summary metadata."""
+    path = params.get("path", "")
+    read_only = params.get("read_only", True)
+    if not path:
+        raise ValueError("params.path is required")
+    from odbAccess import openOdb  # type: ignore
+    odb = openOdb(path=path, readOnly=read_only)
+    handle = _generate_odb_handle()
+    with _ODB_LOCK:
+        _OPEN_ODBS[handle] = odb
+    # Build summary
+    steps_info = []
+    for sname, step in odb.steps.items():
+        frames_info = []
+        for fi, frame in enumerate(step.frames):
+            fields = list(frame.fieldOutputs.keys()) if hasattr(frame, "fieldOutputs") else []
+            frames_info.append({"index": fi, "time": float(frame.frameValue), "fields": fields})
+        steps_info.append({"name": sname, "procedure": str(getattr(step, "procedure", "")), "frames": frames_info})
+    instance_names = list(odb.rootAssembly.instances.keys()) if hasattr(odb.rootAssembly, "instances") else []
+    return {
+        "handle": handle,
+        "path": path,
+        "read_only": read_only,
+        "steps": steps_info,
+        "instances": instance_names,
+        "node_count": sum(len(inst.nodes) for inst_name, inst in odb.rootAssembly.instances.items()),
+        "element_count": sum(len(inst.elements) for inst_name, inst in odb.rootAssembly.instances.items()),
     }
 
+
+def _odb_close(params: dict[str, Any]) -> dict[str, Any]:
+    """Close an open ODB by handle or path."""
+    handle = params.get("handle", "")
+    path = params.get("path", "")
+    closed = []
+    with _ODB_LOCK:
+        if handle:
+            if handle in _OPEN_ODBS:
+                try:
+                    _OPEN_ODBS[handle].close()
+                except Exception:
+                    pass
+                del _OPEN_ODBS[handle]
+                closed.append(handle)
+        elif path:
+            for h, odb_obj in list(_OPEN_ODBS.items()):
+                odb_path = getattr(odb_obj, "path", "")
+                if odb_path == path:
+                    try:
+                        odb_obj.close()
+                    except Exception:
+                        pass
+                    del _OPEN_ODBS[h]
+                    closed.append(h)
+        else:
+            raise ValueError("Provide 'handle' or 'path'")
+    return {"closed": closed}
+
+
+def _odb_list() -> dict[str, Any]:
+    """List all open ODB handles with basic info."""
+    odbs = {}
+    with _ODB_LOCK:
+        for handle, odb_obj in _OPEN_ODBS.items():
+            odbs[handle] = {
+                "path": getattr(odb_obj, "path", "unknown"),
+                "steps": list(odb_obj.steps.keys()) if hasattr(odb_obj, "steps") else [],
+            }
+    return {"odbs": odbs}
+
+
+def _odb_summary(params: dict[str, Any]) -> dict[str, Any]:
+    """Get detailed step/frame/field info for an open ODB."""
+    handle = params.get("handle", "")
+    if not handle:
+        raise ValueError("params.handle is required")
+    with _ODB_LOCK:
+        odb = _OPEN_ODBS.get(handle)
+    if odb is None:
+        raise KeyError(f"ODB handle '{handle}' not found. Use odb_list to see open handles.")
+    steps_info = []
+    for sname, step in odb.steps.items():
+        frames_info = []
+        for fi, frame in enumerate(step.frames):
+            fields = list(frame.fieldOutputs.keys()) if hasattr(frame, "fieldOutputs") else []
+            frames_info.append({"index": fi, "time": float(frame.frameValue), "fields": fields})
+        steps_info.append({"name": sname, "procedure": str(getattr(step, "procedure", "")), "num_frames": len(step.frames)})
+    instances_info = []
+    for iname, inst in odb.rootAssembly.instances.items():
+        instances_info.append({
+            "name": iname,
+            "nodes": len(inst.nodes),
+            "elements": len(inst.elements),
+            "element_types": list(set(e.type.name for e in inst.elements)),
+        })
+    return {
+        "handle": handle,
+        "path": getattr(odb, "path", "unknown"),
+        "steps": steps_info,
+        "instances": instances_info,
+    }
+
+
+def _mdb_info() -> dict[str, Any]:
+    """Get structured mdb model/job info directly."""
+    info: dict[str, Any] = {}
+    try:
+        from abaqus import mdb  # type: ignore
+        models_info = {}
+        for mname, model in mdb.models.items():
+            models_info[mname] = {
+                "parts": list(model.parts.keys()),
+                "materials": list(model.materials.keys()),
+                "steps": list(model.steps.keys()),
+                "loads": list(model.loads.keys()),
+                "boundary_conditions": list(model.boundaryConditions.keys()),
+                "interactions": list(model.interactions.keys()),
+                "constraints": list(model.constraints.keys()),
+                "instances": list(model.rootAssembly.instances.keys()),
+                "sets": list(model.rootAssembly.sets.keys()),
+                "surfaces": list(model.rootAssembly.surfaces.keys()),
+            }
+        info["models"] = models_info
+        jobs_info = []
+        for jname, job in mdb.jobs.items():
+            jitem: dict[str, Any] = {"name": jname}
+            for attr in ("status", "type", "model", "description", "numCpus", "numDomains", "memory"):
+                try:
+                    val = getattr(job, attr, None)
+                    if val is not None:
+                        jitem[attr] = str(val)
+                except Exception:
+                    pass
+            jobs_info.append(jitem)
+        info["jobs"] = jobs_info
+    except ImportError:
+        info["error"] = "Abaqus module not available"
+    return info
+
+
+def _cleanup() -> dict[str, Any]:
+    """Close all open ODBs and return summary."""
+    closed_handles = []
+    errors = []
+    with _ODB_LOCK:
+        for handle, odb_obj in list(_OPEN_ODBS.items()):
+            try:
+                odb_obj.close()
+                closed_handles.append(handle)
+            except Exception as e:
+                errors.append({"handle": handle, "error": str(e)})
+            del _OPEN_ODBS[handle]
+    return {"closed_handles": closed_handles, "errors": errors}
+
+
+def _reset() -> dict[str, Any]:
+    """Full kernel state reset: close ODBs, clear globals."""
+    cleanup_result = _cleanup()
+    _GLOBALS.clear()
+    _GLOBALS.update({"__name__": "__ABAQUS_MCP_exec__", "__doc__": None})
+    return {"cleanup": cleanup_result, "globals_reset": True}
+
+
+def _extract_field(params: dict[str, Any]) -> dict[str, Any]:
+    """Extract field data from an open ODB handle."""
+    handle = params.get("handle", "")
+    step_index = params.get("step_index", -1)
+    frame_index = params.get("frame_index", -1) 
+    field_name = params.get("field_name", "S")
+    if not handle:
+        raise ValueError("params.handle is required")
+    with _ODB_LOCK:
+        odb = _OPEN_ODBS.get(handle)
+    if odb is None:
+        raise KeyError(f"ODB handle '{handle}' not found")
+    steps_list = list(odb.steps.values())
+    if not steps_list:
+        raise ValueError("ODB has no steps")
+    if step_index < 0:
+        step_index = len(steps_list) + step_index
+    step = steps_list[step_index]
+    frames_list = list(step.frames)
+    if frame_index < 0:
+        frame_index = len(frames_list) + frame_index
+    frame = frames_list[frame_index]
+    if field_name not in frame.fieldOutputs:
+        raise KeyError(f"Field '{field_name}' not found in step {step_index} frame {frame_index}")
+    fo = frame.fieldOutputs[field_name]
+    values = []
+    for val in fo.values:
+        entry: dict[str, Any] = {"node_label": val.nodeLabel, "element_label": val.elementLabel}
+        if hasattr(val, "data"):
+            d = val.data
+            if hasattr(d, "__len__"):
+                entry["data"] = [float(x) for x in d]
+            else:
+                entry["data"] = float(d)
+        if hasattr(val, "mises"):
+            entry["mises"] = float(val.mises)
+        if hasattr(val, "invariants") and val.invariants:
+            entry["invariants"] = {str(k): float(v) for k, v in val.invariants.items()}
+        values.append(entry)
+    return {
+        "field": field_name,
+        "step": step_index,
+        "frame": frame_index,
+        "frame_time": float(frame.frameValue),
+        "values": values[:5000],  # cap at 5000 values
+        "total_values": len(values),
+        "truncated": len(values) > 5000,
+    }
 
 class AbaqusMcpHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
@@ -612,13 +873,36 @@ class AbaqusMcpHandler(socketserver.BaseRequestHandler):
             method = message.get("method")
             params = message.get("params") or {}
 
+            # Auth check (if token is configured)
+            if _AUTH_TOKEN is not None:
+                req_token = params.get("token") or message.get("token")
+                if req_token != _AUTH_TOKEN:
+                    raise PermissionError("Invalid or missing auth token. Set ABAQUS_MCP_TOKEN on server and client.")
+
             if method == "ping":
                 result = _ping()
             elif method == "execute":
                 code = params.get("code")
                 if not isinstance(code, str) or not code.strip():
                     raise ValueError("params.code must be a non-empty string")
-                result = _execute(code)
+                read_only = params.get("read_only", False)
+                result = _execute(code, read_only)
+            elif method == "odb_open":
+                result = _odb_open(params)
+            elif method == "odb_close":
+                result = _odb_close(params)
+            elif method == "odb_list":
+                result = _odb_list()
+            elif method == "odb_summary":
+                result = _odb_summary(params)
+            elif method == "mdb_info":
+                result = _mdb_info()
+            elif method == "extract_field":
+                result = _extract_field(params)
+            elif method == "cleanup":
+                result = _cleanup()
+            elif method == "reset":
+                result = _reset()
             else:
                 raise ValueError(f"unknown method: {method!r}")
 
