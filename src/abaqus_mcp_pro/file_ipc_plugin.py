@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Abaqus MCP Plugin v4.0 - file IPC bridge.
+Abaqus MCP Plugin v1.0 - file IPC bridge.
 
 Bridges Abaqus/CAE kernel to external MCP clients via file-based IPC.
 Supports script execution, model/job/ODB queries, and viewport capture.

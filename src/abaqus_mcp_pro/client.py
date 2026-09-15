@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import socket
 import uuid
+import json
+import os
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .protocol import read_message, send_message
@@ -45,12 +49,6 @@ class AbaqusBridgeClient:
 
     def execute(self, code: str) -> dict[str, Any]:
         return self.request("execute", {"code": code})
-
-
-import json
-import os
-import time
-from pathlib import Path
 
 
 @dataclass(frozen=True)

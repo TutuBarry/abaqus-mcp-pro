@@ -21,9 +21,6 @@ TRANSPORT = os.environ.get("ABAQUS_MCP_TRANSPORT", "socket").lower()
 if TRANSPORT not in ("socket", "file"):
     raise ValueError(f"ABAQUS_MCP_TRANSPORT must be 'socket' or 'file', got '{TRANSPORT}'")
 
-_file_ipc_client = None  # lazy-init singleton for file IPC mode
-
-
 def _json_string(data: Any) -> str:
     """Serialize data to a compact JSON string."""
     return json.dumps(data, indent=2, ensure_ascii=False)
@@ -56,25 +53,12 @@ def _socket_request(method: str, params: dict[str, Any] | None = None, timeout: 
     return result
 
 
-def _get_file_ipc_client():
-    """Lazy-init the FileIPCClient singleton."""
-    global _file_ipc_client
-    if _file_ipc_client is None:
-        from .client import FileIPCClient
-        _file_ipc_client = FileIPCClient()
-    return _file_ipc_client
-
-
 def _file_ipc_request(method: str, params: dict[str, Any] | None = None, timeout: float | None = None) -> dict[str, Any]:
     """Send a request to Abaqus via file IPC and return the result."""
-    client = _get_file_ipc_client()
     from .client import FileIPCClient
     effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
-    client_with_timeout = FileIPCClient(
-        mcp_home=client.mcp_home,
-        timeout=effective_timeout,
-    )
-    return client_with_timeout.request(method, params or {})
+    client = FileIPCClient(timeout=effective_timeout)
+    return client.request(method, params or {})
 
 
 async def _bridge_request(method: str, params: dict[str, Any] | None = None, timeout: float | None = None) -> dict[str, Any]:
@@ -91,11 +75,11 @@ async def _bridge_request(method: str, params: dict[str, Any] | None = None, tim
             f"Bridge address: {DEFAULT_HOST}:{DEFAULT_PORT}\n"
             f"Error details: {exc}\n"
             "\n"
-            "???? Abaqus ?????????\n"
-            "????\n"
-            "1. Abaqus/CAE ??????\n"
-            "2. ? Abaqus ????? Plug-ins -> ABAQUS MCP -> Start MCP Bridge\n"
-            f"?????{DEFAULT_HOST}:{DEFAULT_PORT}"
+            "无法连接到 Abaqus 桥接器（连接被拒绝）\n"
+            "请检查：\n"
+            "1. Abaqus/CAE 已打开并正在运行\n"
+            "2. 在 Abaqus 菜单中点击 Plug-ins -> ABAQUS MCP -> Start MCP Bridge\n"
+            f"桥接器地址：{DEFAULT_HOST}:{DEFAULT_PORT}"
         ) from exc
     except TimeoutError as exc:
         raise RuntimeError(
@@ -105,10 +89,10 @@ async def _bridge_request(method: str, params: dict[str, Any] | None = None, tim
             f"Bridge address: {DEFAULT_HOST}:{DEFAULT_PORT}\n"
             f"Error details: {exc}\n"
             "\n"
-            "Abaqus ??????\n"
-            "Abaqus ??????????????\n"
-            "??? Abaqus ??? Stop & Start MCP Bridge\n"
-            f"?????{DEFAULT_HOST}:{DEFAULT_PORT}"
+            "Abaqus 桥接器通信超时\n"
+            "Abaqus 可能正在处理大型计算或已冻结\n"
+            "请尝试在 Abaqus 中点击 Stop & Start MCP Bridge\n"
+            f"桥接器地址：{DEFAULT_HOST}:{DEFAULT_PORT}"
         ) from exc
 
 

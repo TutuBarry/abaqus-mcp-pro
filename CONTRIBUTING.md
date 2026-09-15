@@ -83,7 +83,7 @@ abaqus-mcp-pro/
 |   |   +-- main.js              # Entry point (Vite)
 |   |   +-- viewer3d.js          # Three.js scene management
 |   |   +-- vtuparser.js         # VTK XML UnstructuredGrid (.vtu) parser
-|   |   +-- vtkparser.js         # VTK PolyData (.vtp) parser
+|   |   +-- (vtkparser.js removed, VTU-only pipeline)
 |   |   +-- loader.js            # Model loading UI
 |   |   +-- ui.js                # UI controls and panels
 |   |   +-- odbexport.js         # ODB export trigger
@@ -153,7 +153,7 @@ Tests are located in the `tests/` directory and use pytest. The test suite cover
 - ES modules (Vite build)
 - Vanilla JS for the viewer core (no React/Vue framework overhead)
 - Three.js for 3D rendering, OrbitControls for camera interaction
-- Parse VTK XML directly in JS (vtuparser.js / vtkparser.js) -- no additional loaders
+- Parse VTU XML directly in JS (vtuparser.js) -- no additional loaders
 
 ---
 

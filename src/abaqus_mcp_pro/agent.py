@@ -120,7 +120,7 @@ def _extract_func_name(exc: BaseException) -> str | None:
 
 
 def _extract_code_excerpt(code: str, lineno: int | None, radius: int = 2) -> str | None:
-    if lineno is None:
+    if lineno is None or lineno < 1:
         return None
     lines = code.splitlines()
     if not lines:
