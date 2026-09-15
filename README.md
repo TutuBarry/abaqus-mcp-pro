@@ -70,7 +70,7 @@ codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
 TCP socket bridge. No file I/O, no polling.
 </td>
 <td width="33%" align="center">
-<h3>26+ MCP Tools</h3>
+<h3>124 MCP Tools</h3>
 Model . Job . ODB . KPI . Capsule . Contract . Report . Viewport . Doctor
 </td>
 <td width="33%" align="center">
@@ -108,7 +108,7 @@ Bridge listens on 127.0.0.1:48152. Data never leaves your machine.
          | stdio (MCP)
          v
 +------------------+
-|  MCP Server      |  server.py - 26+ tools, 13 prompts, 74 resources
+|  MCP Server      |  server.py - 124 tools, 13 prompts, 74 resources
 |  (Python)        |
 +--------+---------+
          | TCP :48152

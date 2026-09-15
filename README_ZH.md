@@ -69,7 +69,7 @@ codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
 TCP Socket 桥接。无文件 I/O，无轮询。
 </td>
 <td width="33%" align="center">
-<h3>26+ 个 MCP 工具</h3>
+<h3>124 个 MCP 工具</h3>
 模型 . 作业 . ODB . KPI . 胶囊 . 合约 . 报告 . 视口 . 医生
 </td>
 <td width="33%" align="center">
@@ -107,7 +107,7 @@ ODB 到 VTU 到 Three.js 浏览器可视化。Vite + FastAPI。
          | stdio (MCP)
          v
 +------------------+
-|  MCP 服务器      |  server.py -- 26+ 工具, 13 提示词, 74 资源
+|  MCP 服务器      |  server.py -- 124 工具, 13 提示词, 74 资源
 |  (Python)        |
 +--------+---------+
          | TCP :48152
