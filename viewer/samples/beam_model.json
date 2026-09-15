@@ -1,0 +1,29 @@
+{
+  "format_version": "1.0",
+  "model_name": "Beam Results",
+  "num_nodes": 3366,
+  "num_elements": 2500,
+  "fields": [
+    {
+      "name": "S_Mises",
+      "key": "S_Mises",
+      "label": "Stress (Mises)",
+      "unit": "MPa"
+    },
+    {
+      "name": "U_Magnitude",
+      "key": "U_Magnitude",
+      "label": "Displacement",
+      "unit": "mm"
+    }
+  ],
+  "frames": [
+    {
+      "frame": 0,
+      "time": 0,
+      "json_file": "beam_results.json"
+    }
+  ],
+  "default_frame": 0,
+  "deformation_scale_factor": 1.0
+}
