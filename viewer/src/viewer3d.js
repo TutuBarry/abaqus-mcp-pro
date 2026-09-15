@@ -8,7 +8,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { sampleColormap } from './colormaps.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { parseVTP } from './vtkparser.js';
 import { parseVTU } from './vtuparser.js';
 
 // ── Element type face definitions (Abaqus node ordering) ──
@@ -45,7 +44,6 @@ export class Viewer3D {
     this.axisGroup = null;
     this.probeResult = null;
     this._onPickCallback = null;
-    this._vtpCache = new Map();
     this._onLoadStart = null;
     this._onLoadEnd = null;
   }
@@ -215,7 +213,7 @@ export class Viewer3D {
    * Get field value at the nearest vertex to a point
    */
   getFieldValueAtPoint(point) {
-    const r = this._lastVtpResult || this._lastVtuResult;
+    const r = this._lastVtuResult;
     if (!r) return null;
     const posArr = r.positions;
     const fieldVals = r.fieldValues;
@@ -231,7 +229,7 @@ export class Viewer3D {
   }
 
   getFieldRange() {
-    const r = this._lastVtpResult || this._lastVtuResult;
+    const r = this._lastVtuResult;
     if (!r || !r.fieldValues) return { min: 0, max: 1 };
     const v = r.fieldValues;
     let mn = Infinity, mx = -Infinity;
@@ -362,98 +360,17 @@ export class Viewer3D {
   }
 
 
-  // --- v2.0 VTP-based scene building ---
-  async buildSceneFromVTP(modelJson, options = {}) {
-    const { frameIdx = 0, field = null, colormap = 'jet' } = options;
-    this.meshGroup.clear();
-    this.wireframeGroup.clear();
-    const frameList = modelJson.frames || modelJson.frame_files || [];
-    const rawEntry = frameList[frameIdx];
-    const vtpFilename = (typeof rawEntry === 'string') ? rawEntry : (rawEntry && (rawEntry.vtp_file || rawEntry.file || rawEntry.path));
-    if (!vtpFilename || frameList.length === 0) { this._showDropOverlay(true); return; }
-    this._showDropOverlay(false);
-    // Resolve VTP path relative to the model JSON's base URL
-    const baseUrl = modelJson._baseUrl || window.location.href;
-    const fullPath = baseUrl ? new URL(vtpFilename, baseUrl.replace(/\?.*$/, '')).href : vtpFilename;
-    // Check cache first
-    let vtpResult = this._vtpCache.get(fullPath);
-    if (!vtpResult) {
-      if (this._onLoadStart) this._onLoadStart();
-      let vtpText;
-      try {
-        const resp = await fetch(fullPath);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        vtpText = await resp.text();
-        this._lastVtpPaths = this._lastVtpPaths || {};
-        this._lastVtpPaths[frameIdx] = fullPath;
-      } catch (e) { console.error('VTP fetch failed:', fullPath, e); this._showDropOverlay(true); if (this._onLoadEnd) this._onLoadEnd(); return; }
-      this._showDropOverlay(false);
-      vtpResult = parseVTP(vtpText);
-      if (!vtpResult || vtpResult.positions.length === 0) { if (this._onLoadEnd) this._onLoadEnd(); return; }
-      this._vtpCache.set(fullPath, vtpResult);
-      if (this._onLoadEnd) this._onLoadEnd();
-    }
-    this._renderVtpResult(vtpResult, modelJson, { colormap });
-    return this._fitVtpCamera();
-  }
-
-  _renderVtpResult(vtpResult, modelJson, options = {}) {
-    const { colormap = 'jet' } = options;
-    this.meshGroup.clear();
-    this.wireframeGroup.clear();
-    this._lastVtpResult = vtpResult;
-    const elements = modelJson.elements || {};
-    const fieldMin = modelJson.field_min !== undefined ? modelJson.field_min : vtpResult.fieldMin;
-    const fieldMax = modelJson.field_max !== undefined ? modelJson.field_max : vtpResult.fieldMax;
-    const fieldVals = vtpResult.fieldValues;
-    const allBounds = new THREE.Box3();
-    let hasGeom = false;
-    for (const [etype, conn] of Object.entries(elements)) {
-      if (!conn || conn.length === 0 || !conn[0] || conn[0].length < 3) continue;
-      const npe = conn[0].length;
-      const result = this._buildGeomFromArrays(vtpResult.positions, conn, etype, npe, fieldVals, fieldMin, fieldMax, colormap);
-      if (!result || result.positions.length === 0) continue;
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute('position', new THREE.Float32BufferAttribute(result.positions, 3));
-      geom.setIndex(result.indices);
-      if (result.colors && result.colors.length > 0) geom.setAttribute('color', new THREE.Float32BufferAttribute(result.colors, 3));
-      geom.computeVertexNormals();
-      const hasColors = !!(result.colors && result.colors.length > 0);
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: hasColors, color: hasColors ? 0xffffff : 0x58a6ff, metalness: 0.05, roughness: 0.45, side: THREE.DoubleSide, envMapIntensity: 0.5 });
-      this.meshGroup.add(new THREE.Mesh(geom, mat));
-      const wGeom = geom.clone();
-      const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({ color: 0x8b949e, wireframe: true, transparent: true, opacity: 0.35 }));
-      wf.visible = false;
-      this.wireframeGroup.add(wf);
-      if (result.bounds) { allBounds.expandByPoint(result.bounds.min); allBounds.expandByPoint(result.bounds.max); }
-      hasGeom = true;
-    }
-    this._vtpLastBounds = hasGeom ? allBounds : null;
-  }
-
-  _fitVtpCamera() {
-    if (!this._vtpLastBounds || this._vtpLastBounds.isEmpty()) return;
-    this._fitCamera(this._vtpLastBounds);
-    return { bounds: this._vtpLastBounds };
-  }
-  /**
-   * Get the last loaded VTP frame's node and element counts
-   */
-  getVtpStats() {
-    if (!this._lastVtpResult) return { nodes: 0, elements: 0 };
-    return {
-      nodes: Math.floor(this._lastVtpResult.positions.length / 3),
-      elements: Math.floor(this._lastVtpResult.indices.length / 3),
-    };
-  }
-
-
   // ── VTU-based scene building ──
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
     const { field = null, colormap = 'jet' } = options;
     this.meshGroup.clear();
     this.wireframeGroup.clear();
+    // Line group for beams/trusses
+    this._lineGroup = this._lineGroup || new THREE.Group();
+    if (this._lineGroup.parent) this._lineGroup.parent.remove(this._lineGroup);
+    this._lineGroup = new THREE.Group();
+
     let vtuResult;
     if (typeof vtuUrlOrData === 'string') {
       try {
@@ -478,6 +395,7 @@ export class Viewer3D {
     const allBounds = new THREE.Box3();
     const positions = vtuResult.positions;
     const indices = vtuResult.indices;
+    const lines = vtuResult.lines || [];
     const nNodes = positions.length / 3;
     let hasGeom = false;
     const outPos = [];
@@ -501,227 +419,84 @@ export class Viewer3D {
       if (fieldVals) {
         const v = (i < fieldVals.length && fieldVals[i] != null) ? fieldVals[i] : 0;
         const t = fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
-        const c = sampleColormap(colormap, t);
-        outColors.push(c[0], c[1], c[2]);
+        const col = sampleColormap(colormap, t);
+        outColors.push(col[0], col[1], col[2]);
       }
     }
-    outIndices.push(...indices);
-    if (outPos.length === 0) return;
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
-    geom.setIndex(outIndices);
-    if (outColors.length > 0) geom.setAttribute('color', new THREE.Float32BufferAttribute(outColors, 3));
-    geom.computeVertexNormals();
-    const hasColors = outColors.length > 0;
-    const mat = new THREE.MeshStandardMaterial({
-      vertexColors: hasColors,
-      color: hasColors ? 0xffffff : 0x58a6ff,
-      metalness: 0.05,
-      roughness: 0.45,
-      side: THREE.DoubleSide,
-      envMapIntensity: 0.5,
-    });
-    const mesh = new THREE.Mesh(geom, mat);
-    this.meshGroup.add(mesh);
-    const wGeom = geom.clone();
-    const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({
-      color: 0x8b949e,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.35,
-    }));
-    wf.visible = false;
-    this.wireframeGroup.add(wf);
-    if (boundsMin) {
-      allBounds.expandByPoint(new THREE.Vector3(boundsMin[0], boundsMin[1], boundsMin[2]));
-      allBounds.expandByPoint(new THREE.Vector3(boundsMax[0], boundsMax[1], boundsMax[2]));
+    // --- Mesh (surface/volume) ---
+    if (indices.length > 0) {
+      outIndices.push(...indices);
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+      geom.setIndex(outIndices);
+      if (outColors.length > 0) geom.setAttribute('color', new THREE.Float32BufferAttribute(outColors, 3));
+      geom.computeVertexNormals();
+      const hasColors = outColors.length > 0;
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: hasColors,
+        color: hasColors ? 0xffffff : 0x58a6ff,
+        metalness: 0.05,
+        roughness: 0.45,
+        side: THREE.DoubleSide,
+        envMapIntensity: 0.5,
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      this.meshGroup.add(mesh);
+      const wGeom = geom.clone();
+      const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({
+        color: 0x8b949e,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+      }));
+      wf.visible = false;
+      this.wireframeGroup.add(wf);
+      hasGeom = true;
     }
-    hasGeom = true;
+
+    // --- Lines (beams/trusses) ---
+    if (lines.length > 0) {
+      const linePositions = [];
+      const lineColors = [];
+      for (let i = 0; i < lines.length; i += 2) {
+        const i0 = lines[i];
+        const i1 = lines[i + 1];
+        const x0 = positions[i0 * 3], y0 = positions[i0 * 3 + 1], z0 = positions[i0 * 3 + 2];
+        const x1 = positions[i1 * 3], y1 = positions[i1 * 3 + 1], z1 = positions[i1 * 3 + 2];
+        linePositions.push(x0, y0, z0, x1, y1, z1);
+        if (fieldVals) {
+          const v0 = (i0 < fieldVals.length && fieldVals[i0] != null) ? fieldVals[i0] : 0;
+          const v1 = (i1 < fieldVals.length && fieldVals[i1] != null) ? fieldVals[i1] : 0;
+          const t0 = fieldMax > fieldMin ? (v0 - fieldMin) / (fieldMax - fieldMin) : 0.5;
+          const t1 = fieldMax > fieldMin ? (v1 - fieldMin) / (fieldMax - fieldMin) : 0.5;
+          const col0 = sampleColormap(colormap, t0);
+          const col1 = sampleColormap(colormap, t1);
+          lineColors.push(col0[0], col0[1], col0[2], col1[0], col1[1], col1[2]);
+        }
+      }
+      const lineGeom = new THREE.BufferGeometry();
+      lineGeom.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+      if (lineColors.length > 0) lineGeom.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
+      const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: lineColors.length > 0,
+        color: lineColors.length > 0 ? 0xffffff : 0x88ccff,
+        linewidth: 1,
+      });
+      const lineSegments = new THREE.LineSegments(lineGeom, lineMat);
+      this._lineGroup.add(lineSegments);
+      this.scene.add(this._lineGroup);
+      hasGeom = true;
+    }
+
     if (!hasGeom) return;
     this._fitCamera(allBounds);
     return { bounds: allBounds };
-  }
-
-  getVtuStats() {
+  }  getVtuStats() {
     if (!this._lastVtuResult) return { nodes: 0, elements: 0 };
     return {
       nodes: Math.floor(this._lastVtuResult.positions.length / 3),
       elements: (this._lastVtuResult.indices || []).length / 3 >> 0,
     };
-  }
-  /**
-   * Prefetch a VTP frame and return parsed data without rendering
-   */
-  async prefetchVtpFrame(modelJson, frameIdx) {
-    const frameList = modelJson.frames || modelJson.frame_files || [];
-    if (!frameList[frameIdx]) return null;
-    const baseUrl = modelJson._baseUrl || window.location.href;
-    const rawEntry = frameList[frameIdx];
-    const vtpFilename = (typeof rawEntry === 'string') ? rawEntry : (rawEntry && (rawEntry.vtp_file || rawEntry.file || rawEntry.path));
-    if (!vtpFilename) return null;
-    const fullPath = baseUrl ? new URL(vtpFilename, baseUrl.replace(/\?.*$/, '')).href : vtpFilename;
-    // Check cache first
-    if (this._vtpCache.has(fullPath)) return this._vtpCache.get(fullPath);
-    try {
-      const resp = await fetch(fullPath);
-      if (!resp.ok) return null;
-      const text = await resp.text();
-      const result = parseVTP(text);
-      if (result) this._vtpCache.set(fullPath, result);
-      return result;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  _buildGeomFromArrays(positions, conn, etype, npe, fieldVals, fieldMin, fieldMax, colormap) {
-    const outPos = []; const indices = []; const colors = [];
-    let boundsMin = null, boundsMax = null;
-    const faces = this._getFaces(etype, npe);
-    const linearN = this._getLinearNodeCount(etype, npe);
-    const posArr = positions;
-    const nNodes = posArr.length / 3;
-    const nodeMap = {};
-    for (const elem of conn) {
-      const cornerNodes = elem.slice(0, linearN);
-      const localIdx = [];
-      for (const nid of cornerNodes) {
-        if (nodeMap[nid] === undefined) {
-          nodeMap[nid] = outPos.length / 3;
-          const idx = nid - 1;
-          const x = (idx >= 0 && idx < nNodes) ? posArr[idx * 3] : 0;
-          const y = (idx >= 0 && idx < nNodes) ? posArr[idx * 3 + 1] : 0;
-          const z = (idx >= 0 && idx < nNodes) ? posArr[idx * 3 + 2] : 0;
-          outPos.push(x, y, z);
-          if (boundsMin === null) { boundsMin = [x, y, z]; boundsMax = [x, y, z]; }
-          else {
-            if (x < boundsMin[0]) boundsMin[0] = x;
-            if (y < boundsMin[1]) boundsMin[1] = y;
-            if (z < boundsMin[2]) boundsMin[2] = z;
-            if (x > boundsMax[0]) boundsMax[0] = x;
-            if (y > boundsMax[1]) boundsMax[1] = y;
-            if (z > boundsMax[2]) boundsMax[2] = z;
-          }
-          if (fieldVals) {
-            const v = (idx >= 0 && idx < fieldVals.length && fieldVals[idx] !== null && fieldVals[idx] !== undefined) ? fieldVals[idx] : 0;
-            const t = fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
-            const c2 = sampleColormap(colormap, t);
-            colors.push(c2[0], c2[1], c2[2]);
-          }
-        }
-        localIdx.push(nodeMap[nid]);
-      }
-      if (faces) { for (const f of faces) this._triangulateFace(f, localIdx, indices); }
-      else { for (let i = 1; i < linearN - 1; i++) indices.push(localIdx[0], localIdx[i], localIdx[i + 1]); }
-    }
-    const result = { positions: outPos, indices, colors };
-    if (boundsMin) result.bounds = { min: new THREE.Vector3(boundsMin[0], boundsMin[1], boundsMin[2]), max: new THREE.Vector3(boundsMax[0], boundsMax[1], boundsMax[2]) };
-    return result;
-  }
-  _buildGeom(nodes, conn, etype, npe, disp, scaleFactor, fieldVals, fieldMin, fieldMax, colormap) {
-    const positions = [];
-    const indices = [];
-    const colors = [];
-    let boundsMin = null, boundsMax = null;
-
-    const faces = this._getFaces(etype, npe);
-    const linearN = this._getLinearNodeCount(etype, npe);
-    const nodeMap = {};
-
-    for (const elem of conn) {
-      const cornerNodes = elem.slice(0, linearN);
-      const localIdx = [];
-      for (const nid of cornerNodes) {
-        if (nodeMap[nid] === undefined) {
-          nodeMap[nid] = positions.length / 3;
-          let x = (nodes[nid] && nodes[nid][0]) || 0;
-          let y = (nodes[nid] && nodes[nid][1]) || 0;
-          let z = (nodes[nid] && nodes[nid][2]) || 0;
-          if (disp && disp[nid]) {
-            x += disp[nid][0] * scaleFactor;
-            y += disp[nid][1] * scaleFactor;
-            z += disp[nid][2] * scaleFactor;
-          }
-          positions.push(x, y, z);
-          if (boundsMin === null) {
-            boundsMin = [x, y, z];
-            boundsMax = [x, y, z];
-          } else {
-            if (x < boundsMin[0]) boundsMin[0] = x;
-            if (y < boundsMin[1]) boundsMin[1] = y;
-            if (z < boundsMin[2]) boundsMin[2] = z;
-            if (x > boundsMax[0]) boundsMax[0] = x;
-            if (y > boundsMax[1]) boundsMax[1] = y;
-            if (z > boundsMax[2]) boundsMax[2] = z;
-          }
-          // Color
-          if (fieldVals) {
-            const v = (fieldVals[nid] !== undefined && fieldVals[nid] !== null) ? fieldVals[nid] : 0;
-            const t = fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
-            const c = sampleColormap(colormap, t);
-            colors.push(c[0], c[1], c[2]);
-          }
-        }
-        localIdx.push(nodeMap[nid]);
-      }
-      if (faces) {
-        for (const f of faces) this._triangulateFace(f, localIdx, indices);
-      } else {
-        // Fan triangulation fallback
-        for (let i = 1; i < linearN - 1; i++) {
-          indices.push(localIdx[0], localIdx[i], localIdx[i + 1]);
-        }
-      }
-    }
-
-    const result = { positions, indices, colors };
-    if (boundsMin) {
-      result.bounds = {
-        min: new THREE.Vector3(boundsMin[0], boundsMin[1], boundsMin[2]),
-        max: new THREE.Vector3(boundsMax[0], boundsMax[1], boundsMax[2]),
-      };
-    }
-    return result;
-  }
-
-  _getLinearNodeCount(etype, npe) {
-    const s = (etype || '').toUpperCase();
-    if (s.startsWith('S') || s.startsWith('M3D') || s.startsWith('SFM') || s.startsWith('STRI')) {
-      if (npe <= 3) return 3;
-      if (npe <= 6) return 3;
-      return 4;
-    }
-    if (npe <= 4) return 4;
-    if (npe <= 5) return 5;
-    if (npe <= 6) return 6;
-    if (npe <= 8) return 8;
-    if (npe <= 10) return 4;
-    if (npe <= 15) return 6;
-    if (npe <= 20) return 8;
-    return npe;
-  }
-
-  _getFaces(etype, npe) {
-    const s = (etype || '').toUpperCase();
-    const ln = this._getLinearNodeCount(etype, npe);
-    if (s.startsWith('S') || s.startsWith('M3D') || s.startsWith('SFM') || s.startsWith('STRI')) {
-      return SHELL_FACES[ln] || null;
-    }
-    return SOLID_FACES[ln] || null;
-  }
-
-  _triangulateFace(face, localIdx, indices) {
-    if (face.length === 3) {
-      indices.push(localIdx[face[0]], localIdx[face[1]], localIdx[face[2]]);
-    } else if (face.length === 4) {
-      indices.push(localIdx[face[0]], localIdx[face[1]], localIdx[face[2]]);
-      indices.push(localIdx[face[0]], localIdx[face[2]], localIdx[face[3]]);
-    }
-  }
-
-  _showDropOverlay(visible) {
-    const el = document.getElementById('drop-zone');
-    if (el) el.classList.toggle('hidden', !visible);
   }
 
   // ── Camera ──
@@ -819,11 +594,6 @@ export class Viewer3D {
     link.click();
   }
 
-  // ── VTP Cache ──
-
-  clearVtpCache() {
-    this._vtpCache.clear();
-  }
 
   // ── Internal ──
 

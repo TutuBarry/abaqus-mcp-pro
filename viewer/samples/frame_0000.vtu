@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+  <UnstructuredGrid>
+    <Piece NumberOfPoints="8" NumberOfCells="1">
+      <PointData>
+        <DataArray type="Float64" Name="S_Mises" format="ascii">
+          1.000000e+01
+          2.000000e+01
+          1.500000e+01
+          1.200000e+01
+          8.000000e+00
+          1.800000e+01
+          2.200000e+01
+          1.400000e+01
+        </DataArray>
+        <DataArray type="Float64" Name="U_Magnitude" format="ascii">
+          0.000000e+00
+          5.000000e-01
+          3.000000e-01
+          1.000000e-01
+          0.000000e+00
+          5.000000e-01
+          3.000000e-01
+          1.000000e-01
+        </DataArray>
+      </PointData>
+      <CellData/>
+      <Points>
+        <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="ascii">
+          0.000000e+00 0.000000e+00 0.000000e+00
+          1.000000e+00 0.000000e+00 0.000000e+00
+          1.000000e+00 1.000000e+00 0.000000e+00
+          0.000000e+00 1.000000e+00 0.000000e+00
+          0.000000e+00 0.000000e+00 1.000000e+00
+          1.000000e+00 0.000000e+00 1.000000e+00
+          1.000000e+00 1.000000e+00 1.000000e+00
+          0.000000e+00 1.000000e+00 1.000000e+00
+        </DataArray>
+      </Points>
+      <Cells>
+        <DataArray type="Int32" Name="connectivity" format="ascii">
+          0 1 2 3 4 5 6 7
+        </DataArray>
+        <DataArray type="Int32" Name="offsets" format="ascii">
+          8
+        </DataArray>
+        <DataArray type="Int32" Name="types" format="ascii">
+          12
+        </DataArray>
+      </Cells>
+    </Piece>
+  </UnstructuredGrid>
+</VTKFile>

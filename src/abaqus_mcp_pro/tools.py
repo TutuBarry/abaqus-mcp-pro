@@ -1483,6 +1483,7 @@ def register_tools(mcp) -> None:
     mcp_tool(suggest_abaqus_pattern)
     mcp_tool(get_abaqus_docs_status)
     mcp_tool(export_result_mesh)
+    mcp_tool(export_odb_to_vtk)
 import json as _json_mod
 
 
@@ -1659,3 +1660,66 @@ finally:
     if isinstance(ret, dict):
         return _json_string(ret)
     return str(ret)
+
+
+async def export_odb_to_vtk(
+    odb_path: str,
+    output_dir: str = "",
+    step_index: int = -1,
+    frame_step: int = 1,
+    deformation_scale: float = 1.0,
+    fields: str = "S,U,PEEQ,RF",
+    timeout: float | None = None,
+) -> str:
+    """Export ODB results to VTU format for the 3D viewer.
+
+    Reads mesh geometry, element connectivity, and field output from an
+    Abaqus ODB file and writes VTU files + model.json that can be loaded
+    by the browser-based 3D VTU result viewer.
+
+    Uses Liujie-SYSU/odb2vtk pipeline with element-nodal averaging and
+    full invariant extraction.
+
+    Args:
+        odb_path: Path to the ODB file (absolute or relative to workdir).
+        output_dir: Output directory (default: odb_path_vtk/).
+        step_index: Step index to export (-1 = last step).
+        frame_step: Export every Nth frame (1 = all frames).
+        deformation_scale: Deformation scale factor for visualization.
+        fields: Comma-separated field output names (default: S,U,PEEQ,RF).
+        timeout: Maximum wait time in seconds.
+
+    Returns:
+        JSON string with output_dir, model_json_path, node_count, elem_count, frame_count.
+    """
+    helper_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'viewer', 'export', '_vtu_mcp_helper.py')
+    helper_path = os.path.abspath(helper_path)
+    if not os.path.isfile(helper_path):
+        return _json_string({"error": f"VTU helper not found at {helper_path}"})
+
+    viewer_dir = os.path.abspath(os.path.join(helper_path, '..', '..'))
+    with open(helper_path, 'r', encoding='utf-8') as f:
+        template = f.read()
+
+    code = (
+        template
+        .replace("r'__VIEWER_DIR__'", _json_mod.dumps(viewer_dir))
+        .replace("r'__ODB_PATH__'", _json_mod.dumps(odb_path))
+        .replace("r'__OUTPUT_DIR__'", _json_mod.dumps(output_dir) if output_dir else "''")
+        .replace("__STEP_IDX__", str(step_index))
+        .replace("__FRAME_STEP__", str(frame_step))
+        .replace("__DEF_SCALE__", str(deformation_scale))
+        .replace("'__FIELDS__'", _json_mod.dumps(fields))
+    )
+
+    raw = await execute_script(code, timeout or 300.0)
+    if isinstance(raw, str):
+        for line in raw.splitlines():
+            if line.startswith('RESULT:'):
+                try:
+                    data = json.loads(line[7:])
+                except json.JSONDecodeError:
+                    continue
+                return _json_string(data)
+        return raw
+    return str(raw)

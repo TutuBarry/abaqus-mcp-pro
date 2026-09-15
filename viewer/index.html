@@ -22,7 +22,7 @@
         <button class="p-btn" id="welcome-open-file">打开文件</button>
       </div>
       <div class="welcome-hints">
-        <span>拖放 .vtp / .vtu / .json 文件到窗口</span>
+        <span>拖放 .vtu / .json 文件到窗口</span>
         <span>支持 ODB 直连导出 (需 Abaqus)</span>
       </div>
     </div>
@@ -107,8 +107,8 @@
             </div>
             <div class="panel-body" id="panel-body-file" style="display:none">
               <div class="panel-label">拖放文件或点击选择</div>
-              <input type="file" id="file-input" accept=".json,.vtp,.vtu" class="p-input">
-              <div class="panel-hint">支持 result_mesh.json / .vtp / .vtu 格式</div>
+              <input type="file" id="file-input" accept=".json,.vtu" class="p-input">
+              <div class="panel-hint">支持 result_mesh.json / .vtu 格式</div>
             </div>
           </div>
 
@@ -125,7 +125,7 @@
               </div>
               <div class="p-row">
                 <select id="export-format" class="p-select">
-                  <option value="v2.0">VTP (轻量, 推荐)</option>
+                  <option value="v2.0">VTU (推荐)</option>
                   <option value="v1.0">JSON (兼容)</option>
                 </select>
                 <button id="export-btn" class="p-btn p-btn-primary p-btn-sm">导出</button>
@@ -227,7 +227,7 @@
         <div class="msg">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <div class="title">拖放文件到此处</div>
-          <div class="sub">result_mesh.json 或 .vtp 格式</div>
+          <div class="sub">result_mesh.json 或 .vtu 格式</div>
         </div>
       </div>
 

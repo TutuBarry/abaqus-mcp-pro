@@ -77,3 +77,6 @@ _patch*.py
 _write_*.py
 _temp*
 test_patch.txt
+
+# Dev scratch scripts (one-off patches, never committed)
+dev/

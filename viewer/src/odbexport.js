@@ -80,12 +80,12 @@ export class ODBExportClient {
       const data = await resp.json();
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
-      this.state.format = (fmt === '2.0' || fmt.startsWith('2.')) ? 'v2.0' : 'v1.0';
+      this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
       this.state.currentFrame = 0;
       this.state.currentField = (data.fields || [])[0] || null;
       const opts = { frameIdx: 0, field: this.state.currentField, colormap: this.state.colormapName };
-      if (this.state.format === 'v2.0') {
-        await this.viewer.buildSceneFromVTP(data, opts);
+      if (this.state.format === 'v3.0') {
+        await this.viewer.buildSceneFromVTU(data, opts);
       } else {
         this.viewer.buildScene(data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
       }

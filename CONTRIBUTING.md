@@ -77,7 +77,6 @@ abaqus-mcp-pro/
 |   +-- capsule.py               # Experiment state tracking / diff
 |   +-- contracts.py             # Physics contracts validation
 |   +-- report.py                # Simulation report generation
-|   +-- export_result_mesh.py    # ODB -> result_mesh.json (legacy)
 |   +-- pywinauto_tools.py       # Windows GUI automation helpers
 +-- viewer/                       # 3D browser viewer (Vite + Three.js)
 |   +-- src/                     # Frontend source
@@ -94,6 +93,7 @@ abaqus-mcp-pro/
 |   +-- export/                  # Python export utilities
 |   |   +-- __init__.py
 |   |   +-- export_to_vtk.py     # ODB -> VTU exporter (Liujie-SYSU based)
+|   |   +-- _vtu_mcp_helper.py      # MCP tool template (VTU)
 |   +-- serve_viewer.py          # One-click viewer server (http.server)
 |   +-- viewer_server.py         # FastAPI viewer server (uvicorn)
 |   +-- cache.py                 # Export cache manager
@@ -207,7 +207,7 @@ The viewer pipeline is: **ODB (.odb) -> export_to_vtk.py -> VTU (.vtu) -> vtupar
 
 - `viewer/src/vtuparser.js` -- parses VTU XML into `{ positions, indices, cellTypes, fieldValues }`
 - `viewer/src/viewer3d.js` -- main Three.js scene, handles rendering, picking, animation
-- The viewer can also load legacy `.result_mesh.json` format (via main.js)
+- The viewer can also load legacy `.result_mesh.json` format (JSON v1, deprecated)
 
 ### Adding a New Field Variable
 

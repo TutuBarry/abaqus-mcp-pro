@@ -242,7 +242,8 @@ or any VTK-compatible viewer. No proprietary format lock-in.
 | **ODB** | inspect_odb | Frames, variables, sections |
 | | get_odb_info | Compatibility wrapper |
 | | extract_kpis | ODB Lens: KPI extraction |
-| | export_result_mesh | Export ODB to VTU for 3D viewer |
+| | export_result_mesh | Export ODB to JSON (legacy v1) |
+| | export_odb_to_vtk | Export ODB to VTU for 3D viewer (Liujie-SYSU/odb2vtk) |
 | **Doctor** | check_silent_failures | Detect silent model issues (non-error but wrong) |
 | | converge_advice | Convergence advisor with ranked fix suggestions |
 | **Capsule** | create_capsule | Save experiment state snapshot |
@@ -364,7 +365,6 @@ abaqus-mcp-pro/
 |   +-- abaqus_tools.py           # Core Abaqus wrappers
 |   +-- abaqus_tools_extended.py  # Extended operation wrappers
 |   +-- abaqus_docs.py            # Abaqus doc search
-|   +-- export_result_mesh.py     # ODB -> JSON (legacy)
 |   +-- agent.py                  # Abaqus-side TCP agent
 |   +-- gui_plugin.py             # Abaqus/CAE GUI plugin
 |   +-- file_ipc_plugin.py        # File IPC fallback
@@ -379,7 +379,6 @@ abaqus-mcp-pro/
 |   +-- package.json              # Vite + Three.js
 |   +-- vite.config.js            # Vite build config
 |   +-- index.html                # Viewer entry point
-|   +-- main.js                   # Legacy viewer (V1)
 |   +-- src/
 |   |   +-- main.js               # V2 viewer entry (Vite)
 |   |   +-- viewer3d.js           # Three.js scene
@@ -394,9 +393,9 @@ abaqus-mcp-pro/
 |   +-- export/
 |   |   +-- __init__.py
 |   |   +-- export_to_vtk.py      # ODB -> VTU (Liujie-SYSU)
+|   |   +-- _vtu_mcp_helper.py      # MCP tool template (VTU)
 |   +-- dist/                     # Vite build output
 |   +-- samples/                  # Sample VTU files
-|   +-- *.result_mesh.json        # Legacy test data
 +-- scripts/                      # noGUI launchers
 +-- examples/                     # End-to-end scripts
 +-- tests/                        # Test suite

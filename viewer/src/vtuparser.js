@@ -1,6 +1,6 @@
 /**
- * VTK XML Unstructured Grid (ASCII) Parser.
- * Parses .vtu files into geometry and field data.
+ * VTK XML Unstructured Grid (ASCII) Parser — handles mesh + line primitives.
+ * Parses .vtu files into geometry (indices for surfaces, lines for beams/trusses) and field data.
  * Supports UnstructuredGrid with cell type mapping to Three.js geometry.
  */
 
@@ -27,7 +27,16 @@ const VTK_CELL_NODES = {
  * @param {string} text - VTU file content
  * @returns {object} { positions, indices, cellTypes, fieldValues, fieldMin, fieldMax }
  */
-export function parseVTU(text) {
+/**
+ * Parse a VTK XML UnstructuredGrid string.
+ * Optionally select a specific field by name.
+ * @param {string} text - VTU file content
+ * @param {object} options
+ * @param {string} options.fieldName - exact Name attribute to select (optional)
+ * @returns {object} { positions, indices, lines, cellTypes, fieldValues, fieldMin, fieldMax }
+ */
+export function parseVTU(text, options = {}) {
+  const { fieldName } = options;
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, 'text/xml');
   const root = doc.documentElement;
@@ -62,18 +71,28 @@ export function parseVTU(text) {
     }
   }
 
-  // PointData Scalars
+  // PointData Scalars — optionally select by Name
   let fieldValues = null;
   let fieldMin = 0;
   let fieldMax = 1;
 
-  let pdEl = root.querySelector('PointData DataArray[NumberOfComponents="1"]');
-  if (!pdEl) {
-    pdEl = root.querySelector('PointData DataArray:not([NumberOfComponents])');
+  let pdEl = null;
+  if (fieldName) {
+    pdEl = root.querySelector('PointData DataArray[Name="' + fieldName + '"]');
+    if (!pdEl) {
+      console.warn('Field "' + fieldName + '" not found in VTU, falling back to first scalar');
+    }
   }
   if (!pdEl) {
-    pdEl = root.querySelector('PointData DataArray');
+    pdEl = root.querySelector('PointData DataArray[NumberOfComponents="1"]');
+    if (!pdEl) {
+      pdEl = root.querySelector('PointData DataArray:not([NumberOfComponents])');
+    }
+    if (!pdEl) {
+      pdEl = root.querySelector('PointData DataArray');
+    }
   }
+
   if (pdEl) {
     const nc = parseInt(pdEl.getAttribute('NumberOfComponents') || '1');
     if (nc === 1) {
@@ -92,28 +111,36 @@ export function parseVTU(text) {
     }
   }
 
-  // Convert cells to triangle indices
+  // Convert cells to triangle indices and line segments
   const indices = [];
+  const lines = [];
   const cells = [];
   let cursor = 0;
   for (let i = 0; i < offsets.length; i++) {
     const end = offsets[i];
     const nVerts = end - cursor;
+    const cellType = cellTypes[i];
     const cell = [];
     for (let k = 0; k < nVerts; k++) {
       cell.push(connectivity[cursor + k]);
     }
     cells.push(cell);
-    triangulateCell(cell, indices);
+    triangulateCell(cell, cellType, indices, lines);
     cursor = end;
   }
 
-  return { positions, indices, cells, cellTypes, fieldValues, fieldMin, fieldMax };
+  return { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax };
 }
 
-function triangulateCell(cell, indices) {
+function triangulateCell(cell, cellType, indices, lines) {
   const n = cell.length;
+  // VTK_LINE = 3, VTK_QUADRATIC_EDGE = 21
+  if (cellType === 3 || cellType === 21) {
+    lines.push(cell[0], cell[1]);
+    return;
+  }
   if (n === 3) {
+    // VTK_TRIANGLE
     indices.push(cell[0], cell[1], cell[2]);
   } else if (n === 4) {
     indices.push(cell[0], cell[1], cell[2]);
@@ -152,7 +179,7 @@ function triangulateCell(cell, indices) {
   } else if (n === 20 || n === 15) {
     const corners = n === 20 ? 8 : 6;
     const linear = cell.slice(0, corners);
-    triangulateCell(linear, indices);
+    triangulateCell(linear, -1, indices, lines);
   } else {
     for (let i = 1; i < n - 1; i++) {
       indices.push(cell[0], cell[i], cell[i + 1]);
@@ -169,9 +196,9 @@ function parseDataArray(el) {
   return text.split(/\s+/).map(Number);
 }
 
-export async function loadVTU(url) {
+export async function loadVTU(url, options = {}) {
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error(HTTP );
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const text = await resp.text();
-  return parseVTU(text);
+  return parseVTU(text, options);
 }

@@ -45,15 +45,15 @@ export class UIController {
       data._baseUrl = url;
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
-      this.state.format = fmt === '2.0' || fmt.startsWith('2.') ? 'v2.0' : 'v1.0';
+      this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
       this.state.currentFrame = 0;
       this.state.currentField = (data.fields || [])[0] || null;
       this.state.deformation_scale_factor = data.deformation_scale_factor || 1.0;
       this.state.scaleFactor = data.deformation_scale_factor || 1.0;
 
       const opts = { frameIdx: 0, field: this.state.currentField, colormap: this.state.colormapName };
-      if (this.state.format === 'v2.0') {
-        await this.viewer.buildSceneFromVTP(data, opts);
+      if (this.state.format === 'v3.0') {
+        await this.viewer.buildSceneFromVTU(data, opts);
       } else {
         this.viewer.buildScene(data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
       }
@@ -167,15 +167,15 @@ export class UIController {
       data._baseUrl = window.location.href;
       this.state.data = data;
       const fmt = data.format_version || 'v1.0';
-      this.state.format = fmt === '2.0' || fmt.startsWith('2.') ? 'v2.0' : 'v1.0';
+      this.state.format = (fmt === '2.0' || fmt.startsWith('2.') || fmt === '3.0' || fmt.startsWith('3.')) ? 'v3.0' : 'v1.0';
       this.state.currentFrame = 0;
       this.state.currentField = (data.fields || [])[0] || null;
       this.state.deformation_scale_factor = data.deformation_scale_factor || 1.0;
       this.state.scaleFactor = data.deformation_scale_factor || 1.0;
 
       const opts = { frameIdx: 0, field: this.state.currentField, colormap: this.state.colormapName };
-      if (this.state.format === 'v2.0') {
-        await this.viewer.buildSceneFromVTP(data, opts);
+      if (this.state.format === 'v3.0') {
+        await this.viewer.buildSceneFromVTU(data, opts);
       } else {
         this.viewer.buildScene(data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
       }
@@ -465,8 +465,8 @@ export class UIController {
   _rebuild() {
     if (!this.state.data) return;
     const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName };
-    if (this.state.format === 'v2.0') {
-      this.viewer.buildSceneFromVTP(this.state.data, opts);
+    if (this.state.format === 'v3.0') {
+      this.viewer.buildSceneFromVTU(this.state.data, opts);
     } else {
       this.viewer.buildScene(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     }
@@ -493,8 +493,8 @@ export class UIController {
     let totalElems = 0;
     for (const arr of Object.values(elems)) totalElems += (arr || []).length;
 
-    if (this.state.format === 'v2.0') {
-      const stats = this.viewer.getVtpStats();
+    if (this.state.format === 'v3.0') {
+      const stats = this.viewer.getVtuStats();
       document.getElementById('info-nodes').textContent = (stats.nodes || 0).toLocaleString();
       document.getElementById('info-elems').textContent = (stats.elements || 0).toLocaleString();
     } else {
@@ -544,8 +544,8 @@ export class UIController {
     let totalElems = 0;
     for (const arr of Object.values(elems)) totalElems += (arr || []).length;
 
-    if (this.state.format === 'v2.0') {
-      const stats = this.viewer.getVtpStats();
+    if (this.state.format === 'v3.0') {
+      const stats = this.viewer.getVtuStats();
       addItem('◈', '节点: ' + (stats.nodes || 0).toLocaleString());
     } else {
       addItem('◈', '节点: ' + Math.max(0, (nodes.length - 1)).toLocaleString());
@@ -556,7 +556,7 @@ export class UIController {
     if (etList.length > 0) {
       const badge = document.createElement('div');
       badge.className = 'tree-item';
-      badge.innerHTML = '<span style="width:14px;text-align:center;flex-shrink:0;font-size:11px">📦</span><span><span class="tree-badge ' + (this.state.format === 'v2.0' ? 'green' : 'yellow') + '">' + (this.state.format === 'v2.0' ? 'VTP 轻量' : 'JSON 兼容') + '</span></span>';
+      badge.innerHTML = '<span style="width:14px;text-align:center;flex-shrink:0;font-size:11px">📦</span><span><span class="tree-badge ' + (this.state.format === 'v3.0' ? 'green' : 'yellow') + '">' + (this.state.format === 'v3.0' ? 'VTU' : 'JSON 兼容') + '</span></span>';
       tree.appendChild(badge);
     }
     for (const et of etList) {
@@ -594,8 +594,8 @@ export class UIController {
 
     let fmin = 0, fmax = 1;
     const fieldKey = this.state.currentField.key || this.state.currentField.name;
-    if (this.state.format === 'v2.0' && this.viewer._lastVtpResult && this.viewer._lastVtpResult.fieldValues) {
-      const valid = this.viewer._lastVtpResult.fieldValues.filter((v) => v != null && !isNaN(v));
+    if (this.state.format === 'v3.0' && this.viewer._lastVtuResult && this.viewer._lastVtuResult.fieldValues) {
+      const valid = this.viewer._lastVtuResult.fieldValues.filter((v) => v != null && !isNaN(v));
       if (valid.length > 0) { fmin = Math.min(...valid); fmax = Math.max(...valid); }
     } else if (this.state.data) {
       const frame = (this.state.data.frames || [])[this.state.currentFrame];
