@@ -270,7 +270,7 @@ export class UIController {
   _bindDragDrop() {
     const vp = document.getElementById('viewport');
     const dz = document.getElementById('drop-zone');
-    vp.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.remove('hidden'); });
+    vp.addEventListener('dragover', (e) => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) { dz.classList.remove('hidden'); } });
     vp.addEventListener('dragleave', () => dz.classList.add('hidden'));
     vp.addEventListener('drop', (e) => {
       e.preventDefault();
@@ -541,7 +541,7 @@ export class UIController {
 
   async _rebuild() {
     if (!this.state.data) return;
-    const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName };
+    const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName, preserveCamera: true };
     if (this._contourCustomMin !== null) opts.fieldMin = this._contourCustomMin;
     if (this._contourCustomMax !== null) opts.fieldMax = this._contourCustomMax;
     if (this.state.format === 'v3.0') {

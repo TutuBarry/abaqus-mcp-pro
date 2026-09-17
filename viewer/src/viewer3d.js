@@ -4,8 +4,8 @@
  */
 
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { sampleColormap } from './colormaps.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { parseVTU } from './vtuparser.js';
@@ -42,14 +42,18 @@ export class Viewer3D {
     this.labelRenderer = null;
     this.axisScene = null;
     this.axisCamera = null;
-    this.axisGroup = null;
-    this.probeResult = null;
+   this.axisGroup = null;
+    this.axisRenderer = null;
+   this.probeResult = null;
     this._onPickCallback = null;
     this._onLoadStart = null;
     this._onLoadEnd = null;
     this._clippingEnabled = false;
     this._clippingPosition = 0;
-    this._animInterval = 200;
+   this._animInterval = 200;
+    this._axisDirs = [[1,0,0],[0,1,0],[0,0,1]];
+    this._axisColors = ['#ff6666','#66ff66','#6699ff'];
+    this._axisLabelElements = null;
   }
 
   init() {
@@ -75,6 +79,8 @@ export class Viewer3D {
     this.renderer.shadowMap.enabled = false;
     this.renderer.localClippingEnabled = true;
     this.container.appendChild(this.renderer.domElement);
+    // Prevent native canvas drag (interferes with OrbitControls rotation)
+    this.renderer.domElement.addEventListener('dragstart', (e) => e.preventDefault());
 
     // CSS2D label renderer for axis labels, probe tooltips
     this.labelRenderer = new CSS2DRenderer();
@@ -83,13 +89,35 @@ export class Viewer3D {
     this.labelRenderer.domElement.style.top = '0';
     this.labelRenderer.domElement.style.left = '0';
     this.labelRenderer.domElement.style.pointerEvents = 'none';
-    this.container.appendChild(this.labelRenderer.domElement);
+   this.container.appendChild(this.labelRenderer.domElement);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
+    // Separate transparent WebGL renderer for axis indicator (no black background)
+    this.axisContainer = document.createElement('div');
+    this.axisContainer.id = 'axis-indicator';
+    this.axisContainer.style.cssText = 'position:absolute;top:80px;right:10px;width:170px;height:170px;z-index:20;pointer-events:none';
+    this.container.appendChild(this.axisContainer);
+
+    this.axisRenderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
+    this.axisRenderer.setSize(170, 170);
+    this.axisRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.axisRenderer.setClearColor(0x000000, 0); // fully transparent background
+    this.axisContainer.appendChild(this.axisRenderer.domElement);
+    this.axisRenderer.domElement.style.display = 'block';
+
+   this.controls = new TrackballControls(this.camera, this.renderer.domElement);
     this.controls.minDistance = 0.1;
     this.controls.maxDistance = 5000;
+    this.controls.panSpeed = 0.8;
+    this.controls.noRotate = false;
+    this.controls.noZoom = false;
+    this.controls.noPan = false;
+    this.controls.staticMoving = false;
+    this.controls.dynamicDampingFactor = 0.08;
+    this.controls.rotateSpeed = 1.2;
+    this.controls.zoomSpeed = 1.2;
 
     // Grid
     this.gridHelper = new THREE.GridHelper(5, 20, 0x444466, 0x333355);
@@ -154,11 +182,11 @@ export class Viewer3D {
   /* ── Axis Indicator (top-right corner) ── */
   _buildAxisIndicator() {
     this.axisScene = new THREE.Scene();
-    this.axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    this.axisCamera.position.set(3, 2, 4);
+   this.axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    this.axisCamera.position.set(4, 2.5, 5);
     this.axisCamera.lookAt(0, 0, 0);
 
-    const len = 1.0;
+    const len = 1.6;
     const colors = [0xff4444, 0x44ff44, 0x4488ff];
     const labels = ['X', 'Y', 'Z'];
     const dirs = [[1,0,0], [0,1,0], [0,0,1]];
@@ -173,7 +201,7 @@ export class Viewer3D {
 
       // Arrow cone
       const cone = new THREE.Mesh(
-        new THREE.ConeGeometry(0.06, 0.15, 8),
+        new THREE.ConeGeometry(0.09, 0.22, 8),
         new THREE.MeshBasicMaterial({ color: colors[i] })
       );
       cone.position.set(dirs[i][0]*len, dirs[i][1]*len, dirs[i][2]*len);
@@ -181,21 +209,20 @@ export class Viewer3D {
       else if (i === 2) cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1));
       g.add(cone);
 
-      // CSS2D label
-      const div = document.createElement('div');
-      div.textContent = labels[i];
-      div.style.color = ['#ff6666', '#66ff66', '#6699ff'][i];
-      div.style.fontSize = '12px';
-      div.style.fontWeight = 'bold';
-      div.style.fontFamily = 'monospace';
-      div.style.textShadow = '0 0 4px rgba(0,0,0,0.8)';
-      const label = new CSS2DObject(div);
-      label.position.set(dirs[i][0]*(len+0.2), dirs[i][1]*(len+0.2), dirs[i][2]*(len+0.2));
-      g.add(label);
     }
 
     this.axisGroup = g;
     this.axisScene.add(g);
+
+    // Create HTML labels for X, Y, Z (positioned manually via 3D-to-screen projection)
+    this._axisLabelElements = [];
+    for (let i = 0; i < 3; i++) {
+      const div = document.createElement('div');
+      div.textContent = labels[i];
+      div.style.cssText = 'position:absolute;color:' + this._axisColors[i] + ';font-size:18px;font-weight:bold;font-family:monospace;text-shadow:0 0 6px rgba(0,0,0,0.9);pointer-events:none;transform:translate(-50%,-50%)';
+      this.axisContainer.appendChild(div);
+      this._axisLabelElements.push(div);
+    }
   }
 
   /* ── Click-to-pick / Probe ── */
@@ -250,10 +277,22 @@ export class Viewer3D {
   dispose() {
     this._disposed = true;
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
-    if (this.renderer) {
-      this.renderer.dispose();
-      if (this.renderer.domElement.parentNode) {
-        this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+   if (this.renderer) {
+     this.renderer.dispose();
+     if (this.renderer.domElement.parentNode) {
+       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+     }
+   }
+    if (this.axisRenderer) {
+      this.axisRenderer.dispose();
+      if (this._axisLabelElements) {
+        this._axisLabelElements.forEach(el => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        });
+        this._axisLabelElements = null;
+      }
+      if (this.axisContainer && this.axisContainer.parentNode) {
+        this.axisContainer.parentNode.removeChild(this.axisContainer);
       }
     }
   }
@@ -279,7 +318,7 @@ export class Viewer3D {
       colormap = 'jet',
       fieldMin: optFieldMin,
       fieldMax: optFieldMax,
-    } = options;
+      preserveCamera = false,  } = options;
 
     this.meshGroup.clear();
     this.wireframeGroup.clear();
@@ -368,7 +407,16 @@ export class Viewer3D {
     }
 
     if (!hasGeom) return;
-    this._fitCamera(allBounds);
+    if (preserveCamera) {
+      const pos = this.camera.position.clone();
+      const target = this.controls.target.clone();
+      this._fitCamera(allBounds);
+      this.camera.position.copy(pos);
+      this.controls.target.copy(target);
+      this.controls.update();
+    } else {
+      this._fitCamera(allBounds);
+    }
 
     // Return metadata for UI
     return { bounds: allBounds };
@@ -482,7 +530,7 @@ export class Viewer3D {
   }
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
-    const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0, fieldMin: optFieldMin, fieldMax: optFieldMax } = options;
+    const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0, fieldMin: optFieldMin, fieldMax: optFieldMax, preserveCamera = false, } = options;
     this.meshGroup.clear();
     this.wireframeGroup.clear();
     // Line group for beams/trusses
@@ -706,7 +754,16 @@ export class Viewer3D {
     }
 
     if (!hasGeom) return;
-    this._fitCamera(allBounds);
+    if (preserveCamera) {
+      const pos = this.camera.position.clone();
+      const target = this.controls.target.clone();
+      this._fitCamera(allBounds);
+      this.camera.position.copy(pos);
+      this.controls.target.copy(target);
+      this.controls.update();
+    } else {
+      this._fitCamera(allBounds);
+    }
     return { bounds: allBounds };
   }  getVtuStats() {
     if (!this._lastVtuResult) return { nodes: 0, elements: 0 };
@@ -849,8 +906,11 @@ export class Viewer3D {
     const h = rect.height;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
-    if (this.labelRenderer) this.labelRenderer.setSize(w, h);
+   this.renderer.setSize(w, h);
+   if (this.labelRenderer) this.labelRenderer.setSize(w, h);
+    if (this.axisRenderer) {
+      this.axisRenderer.setSize(170, 170);
+    }
   }
 
   _animate() {
@@ -859,20 +919,33 @@ export class Viewer3D {
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
 
-    // Render axis indicator (top-right corner)
-    if (this.axisGroup && this.axisCamera) {
-      this.axisGroup.quaternion.copy(this.camera.quaternion);
-      const vp = this.renderer.domElement.getBoundingClientRect();
-      const sz = 110;
-      const ox = vp.width - sz - 10;
-      const oy = 8;
-      const dpr = Math.min(window.devicePixelRatio, 2);
-      this.renderer.setViewport(ox * dpr, (vp.height - oy - sz) * dpr, sz * dpr, sz * dpr);
-      this.renderer.setScissor(ox * dpr, (vp.height - oy - sz) * dpr, sz * dpr, sz * dpr);
-      this.renderer.setScissorTest(true);
-      this.renderer.render(this.axisScene, this.axisCamera);
-      this.renderer.setScissorTest(false);
-      this.renderer.setViewport(0, 0, vp.width * dpr, vp.height * dpr);
+   // Render axis indicator (top-right corner)
+   if (this.axisGroup && this.axisCamera) {
+     this.axisGroup.quaternion.copy(this.camera.quaternion);
+      this.axisCamera.aspect = 1;
+      this.axisCamera.updateProjectionMatrix();
+      this.axisRenderer.render(this.axisScene, this.axisCamera);
+
+      // Update HTML label positions via 3D-to-screen projection
+      if (this._axisLabelElements) {
+        const sz = 170;
+        const len = 1.6;
+        const offset = 0.3;
+        for (let i = 0; i < 3; i++) {
+          const p = new THREE.Vector3(
+            this._axisDirs[i][0] * (len + offset),
+            this._axisDirs[i][1] * (len + offset),
+            this._axisDirs[i][2] * (len + offset)
+          );
+          // Apply the axis group rotation (mirrors main camera) so labels follow the view
+          p.applyQuaternion(this.axisGroup.quaternion);
+          p.project(this.axisCamera);
+          const x = (p.x * 0.5 + 0.5) * sz;
+          const y = (-p.y * 0.5 + 0.5) * sz;
+          this._axisLabelElements[i].style.left = x + 'px';
+          this._axisLabelElements[i].style.top = y + 'px';
+        }
+      }
     }
 
     // CSS2D labels
