@@ -80,3 +80,4 @@ test_patch.txt
 
 # Dev scratch scripts (one-off patches, never committed)
 dev/
+viewer/samples/beam_model_converted.json
