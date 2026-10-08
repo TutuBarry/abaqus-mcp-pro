@@ -16,9 +16,9 @@
         <svg viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="12" fill="#e94560"/><text x="32" y="44" text-anchor="middle" fill="white" font-size="28" font-weight="bold" font-family="sans-serif">A</text></svg>
       </div>
       <h1 class="welcome-title">ABAQUS MCP Pro</h1>
-      <p class="welcome-sub">轻量化 3D 仿真结果查看器</p>
+      <p class="welcome-sub" id="welcome-status">暂无计算结果，请打开计算结果链接或选择 ODB 文件</p>
       <div class="welcome-actions">
-        <button class="p-btn p-btn-primary" id="welcome-load-sample">加载示例模型</button>
+        <button class="p-btn p-btn-primary" id="welcome-open-odb">打开 ODB 结果</button>
         <button class="p-btn" id="welcome-open-file">打开文件</button>
       </div>
       <div class="welcome-hints">
@@ -126,10 +126,17 @@
               <div class="p-row">
                 <select id="export-format" class="p-select">
                   <option value="v2.0">VTU (推荐)</option>
-                  <option value="v1.0">JSON (兼容)</option>
                 </select>
                 <button id="export-btn" class="p-btn p-btn-primary p-btn-sm">导出</button>
               </div>
+              <label class="panel-label" for="export-section">截面点编号（壳/梁，可选）</label>
+              <input type="number" id="export-section" class="p-input" min="1" step="1" placeholder="例如 1；多个截面点需明确选择">
+              <label class="panel-label" for="export-units">模型单位制（由建模者确认）</label>
+              <select id="export-units" class="p-input">
+                <option value="">未声明</option>
+                <option value="N-mm-s-tonne">N / mm / s / tonne（应力 MPa）</option>
+                <option value="N-m-s-kg">N / m / s / kg（应力 Pa）</option>
+              </select>
               <div id="export-status"></div>
               <div class="export-progress hidden" id="export-progress-container">
                 <div class="export-progress-bar" id="export-progress-bar"></div>
@@ -281,7 +288,8 @@
       <div id="legend" class="hidden">
         <div id="legend-title">未选择场变量</div>
         <div id="legend-bar"></div>
-        <div id="legend-labels"><span id="legend-min">0</span><span id="legend-max">0</span></div>
+        <div id="legend-labels"><span id="legend-min">0</span><span id="legend-mid">0</span><span id="legend-max">0</span></div>
+        <div id="legend-note"></div>
       </div>
 
       <!-- Probe info tooltip -->

@@ -8,8 +8,7 @@ import os
 import platform
 import shutil
 import sys
-from importlib import metadata, resources
-from pathlib import Path
+from importlib import metadata
 from typing import Any
 
 from .client import AbaqusBridgeClient
@@ -154,18 +153,8 @@ def _doctor_main(args: argparse.Namespace) -> None:
 
 def _setup_main(args: argparse.Namespace) -> None:
     """Copy the Abaqus GUI plugin."""
-    target_dir = Path(os.environ.get("ABAQUS_MCP_PLUGIN_DIR", Path.home() / "abaqus_plugins"))
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / "abaqus_mcp_pro_gui_plugin.py"
-
-    package_files = resources.files("abaqus_mcp_pro")
-    source = package_files.joinpath("gui_plugin.py")
-    with resources.as_file(source) as src:
-        if target.exists() and target.read_bytes() == Path(src).read_bytes():
-            print(f"Plugin already up to date: {target}")
-        else:
-            shutil.copy2(src, target)
-            print(f"Installed GUI plugin to: {target}")
+    from .plugin_install import install_plugin
+    print(f"Installed GUI plugin and runtime: {install_plugin()}")
 
     print()
     print("Restart Abaqus/CAE, then activate:")

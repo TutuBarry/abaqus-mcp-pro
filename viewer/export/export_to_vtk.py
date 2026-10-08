@@ -25,9 +25,11 @@ Command line:
 
 from __future__ import annotations
 import json
+import math
+import hashlib
+from xml.sax.saxutils import escape
 import os
 import sys
-import xml.etree.ElementTree as ET
 from datetime import datetime
 
 # VTK Cell Type constants
@@ -36,7 +38,7 @@ VTK_LINE = 3
 VTK_TRIANGLE = 5
 VTK_QUAD = 9
 VTK_TETRA = 10
-VTK_PYRAMID = 7
+VTK_PYRAMID = 14
 VTK_WEDGE = 13
 VTK_HEXAHEDRON = 12
 VTK_QUADRATIC_EDGE = 21
@@ -68,7 +70,7 @@ ELEMENT_TYPE_MAP = {
     "S6": (VTK_QUADRATIC_TRIANGLE, 6),
     "S8": (VTK_QUADRATIC_QUAD, 8),
     "S8R": (VTK_QUADRATIC_QUAD, 8),
-    "S9": (VTK_QUADRATIC_QUAD, 9),
+    "S9": (28, 9),
     "STRI3": (VTK_TRIANGLE, 3),
     "STRI65": (VTK_QUADRATIC_TRIANGLE, 6),
     "M3D3": (VTK_TRIANGLE, 3),
@@ -77,14 +79,14 @@ ELEMENT_TYPE_MAP = {
     "M3D6": (VTK_QUADRATIC_TRIANGLE, 6),
     "M3D8": (VTK_QUADRATIC_QUAD, 8),
     "M3D8R": (VTK_QUADRATIC_QUAD, 8),
-    "M3D9": (VTK_QUADRATIC_QUAD, 9),
+    "M3D9": (28, 9),
     "B21": (VTK_LINE, 2),
     "B22": (VTK_QUADRATIC_EDGE, 3),
     "B31": (VTK_LINE, 2),
     "B31H": (VTK_LINE, 2),
     "B32": (VTK_QUADRATIC_EDGE, 3),
     "B32H": (VTK_QUADRATIC_EDGE, 3),
-    "B33": (VTK_QUADRATIC_EDGE, 3),
+    "B33": (VTK_LINE, 2),
     "T2D2": (VTK_LINE, 2),
     "T2D3": (VTK_QUADRATIC_EDGE, 3),
     "T3D2": (VTK_LINE, 2),
@@ -101,7 +103,7 @@ def _lookup_vtk_type(abaqus_element_type):
     if "C3D4" in et:
         return (10, 4)
     if "C3D5" in et:
-        return (7, 5)
+        return (14, 5)
     if "C3D6" in et:
         return (13, 6)
     if "C3D8" in et:
@@ -126,7 +128,9 @@ def _lookup_vtk_type(abaqus_element_type):
         return (5, 3)
     if "M3D4" in et:
         return (9, 4)
-    if "B31" in et or "B32" in et or "B33" in et:
+    if et.startswith(('B22', 'B32')):
+        return (21, 3)
+    if "B31" in et or "B33" in et:
         return (3, 2)
     if "T2D2" in et or "T2D3" in et:
         return (3, 2)
@@ -172,6 +176,8 @@ FIELD_DEFS = {
 }
 
 DEFAULT_FIELDS = ["U", "RF", "S", "E", "LE", "PE", "PEEQ"]
+CONTACT_FIELDS = ('CPRESS', 'COPEN', 'CSHEAR1', 'CSHEAR2', 'CSLIP1', 'CSLIP2', 'CSTATUS')
+DEFAULT_FIELDS += list(CONTACT_FIELDS)
 
 
 def _component_labels(field_key, ncomp):
@@ -186,85 +192,87 @@ def _component_labels(field_key, ncomp):
     return [str(i) for i in range(ncomp)]
 
 
+def _field_data(value):
+    try:
+        return value.data
+    except Exception:
+        return value.dataDouble
+
+
+def _field_unit(name, unit_system):
+    if not unit_system:
+        return ''
+    if name in ('S', 'CPRESS', 'CSHEAR1', 'CSHEAR2'):
+        return 'MPa' if unit_system == 'N-mm-s-tonne' else 'Pa'
+    if name in ('U', 'COPEN', 'CSLIP1', 'CSLIP2'):
+        return 'mm' if unit_system == 'N-mm-s-tonne' else 'm'
+    if name in ('RF', 'CF'):
+        return 'N'
+    return ''
+
+
+def _node_key(value):
+    return (value.instance.name, value.nodeLabel)
+
+
 def _read_nodal_field(frame_fo, node_map, num_nodes, ncomp):
-    """Read a nodal-position field -- values per nodeLabel directly."""
-    vals = [0.0] * (num_nodes * ncomp)
-    for v in frame_fo.values:
-        nid = v.nodeLabel
-        if nid not in node_map:
+    vals = [float("nan")] * (num_nodes * ncomp)
+    for value in frame_fo.values:
+        key = _node_key(value)
+        if key not in node_map:
             continue
-        ni = node_map[nid]
-        try:
-            d = v.data
-            if isinstance(d, float):
-                vals[ni] = d
-            elif hasattr(d, "__len__"):
-                for j in range(min(ncomp, len(d))):
-                    vals[ni * ncomp + j] = float(d[j])
-        except Exception:
-            pass
+        index = node_map[key] * ncomp
+        data = _field_data(value)
+        row = [data] if isinstance(data, (int, float)) else list(data)
+        # Abaqus 2D vectors have no third component.
+        if len(row) == 2 and ncomp == 3:
+            row.append(0.0)
+        if len(row) != ncomp:
+            raise ValueError("Unexpected field component count")
+        vals[index:index + ncomp] = [float(v) for v in row]
     return vals
 
 
-def _read_elem_nodal_field(frame_fo, node_map, num_nodes, ncomp, invariants):
-    """Read an element-nodal field using getSubset(position=ELEMENT_NODAL)
-    + count-averaging per node (Liujie-SYSU/odb2vtk approach).
-
-    Returns dict with keys:
-        "data": flat list length num_nodes * ncomp
-        "invariants": {inv_name: flat list length num_nodes}
-    """
+def _read_elem_nodal_field(frame_fo, node_map, num_nodes, ncomp, invariants, section_point=None):
+    from abaqusConstants import ELEMENT_NODAL
+    subset = frame_fo.getSubset(position=ELEMENT_NODAL, readOnly=True)
     sums = [0.0] * (num_nodes * ncomp)
     counts = [0] * num_nodes
     inv_sums = {inv: [0.0] * num_nodes for inv in invariants}
-
-    try:
-        subset = frame_fo.getSubset(position=_ELEMENT_NODAL_POS)
-    except Exception:
-        subset = frame_fo
-
-    for v in subset.values:
-        nid = v.nodeLabel
-        if nid not in node_map:
+    inv_counts = {inv: [0] * num_nodes for inv in invariants}
+    sections = set()
+    for value in subset.values:
+        key = _node_key(value)
+        if key not in node_map:
             continue
-        ni = node_map[nid]
+        section = getattr(getattr(value, "sectionPoint", None), "number", 0)
+        if section_point is not None and section != section_point:
+            continue
+        sections.add(section)
+        if len(sections) > 1:
+            raise ValueError("Multiple section points: select a section point before nodal averaging")
+        ni = node_map[key]
+        data = _field_data(value)
+        row = [data] if isinstance(data, (int, float)) else list(data)
+        if len(row) != ncomp:
+            raise ValueError("Unexpected tensor components; use actual componentLabels")
+        for j, number in enumerate(row):
+            sums[ni * ncomp + j] += float(number)
         counts[ni] += 1
-        try:
-            d = v.data
-            if isinstance(d, float):
-                sums[ni] += d
-            elif hasattr(d, "__len__"):
-                for j in range(min(ncomp, len(d))):
-                    sums[ni * ncomp + j] += float(d[j])
-        except Exception:
-            pass
         for inv in invariants:
-            try:
-                val = getattr(v, inv, None)
-                if val is not None:
-                    inv_sums[inv][ni] += float(val)
-            except Exception:
-                pass
-
-    vals = [0.0] * (num_nodes * ncomp)
-    for ni in range(num_nodes):
-        c = counts[ni]
-        if c > 0:
-            base = ni * ncomp
+            number = getattr(value, inv, None)
+            if number is not None and math.isfinite(float(number)):
+                inv_sums[inv][ni] += float(number)
+                inv_counts[inv][ni] += 1
+    vals = [float("nan")] * (num_nodes * ncomp)
+    for ni, count in enumerate(counts):
+        if count:
             for j in range(ncomp):
-                vals[base + j] = sums[base + j] / c
+                vals[ni * ncomp + j] = sums[ni * ncomp + j] / count
+    return {"data": vals, "invariants": {
+        inv: [inv_sums[inv][i] / inv_counts[inv][i] if inv_counts[inv][i] else float("nan")
+              for i in range(num_nodes)] for inv in invariants}}
 
-    inv_result = {}
-    for inv in invariants:
-        inv_result[inv] = [0.0] * num_nodes
-        for ni in range(num_nodes):
-            c = counts[ni]
-            if c > 0:
-                inv_result[inv][ni] = inv_sums[inv][ni] / c
-
-    return {"data": vals, "invariants": inv_result}
-
-# VTU / PVD writers
 
 def _write_vtu_ascii(path, points, elem_type_info, num_nodes, point_data,
                      field_outputs_available):
@@ -300,10 +308,10 @@ def _write_vtu_ascii(path, points, elem_type_info, num_nodes, point_data,
                     ncomp = 1
                     break
         nc_str = "" if ncomp <= 1 else " NumberOfComponents=\"%d\"" % ncomp
-        pd_lines.append("      <DataArray type=\"Float64\" Name=\"%s\"%s format=\"ascii\">" % (fname, nc_str))
+        pd_lines.append("      <DataArray type=\"Float64\" Name=\"%s\"%s format=\"ascii\">" % (escape(fname, {chr(34): "&quot;"}), nc_str))
         chunk = []
         for v in vals:
-            chunk.append("%.6e" % v)
+            chunk.append("%.16e" % v)
             if len(chunk) >= 6:
                 pd_lines.append("        " + " ".join(chunk))
                 chunk = []
@@ -325,7 +333,7 @@ def _write_vtu_ascii(path, points, elem_type_info, num_nodes, point_data,
     lines.append("        <DataArray type=\"Float64\" Name=\"Points\" NumberOfComponents=\"3\" format=\"ascii\">")
     chunk = []
     for i in range(0, len(points), 3):
-        chunk.append("%.6e %.6e %.6e" % (points[i], points[i+1], points[i+2]))
+        chunk.append("%.16e %.16e %.16e" % (points[i], points[i+1], points[i+2]))
         if len(chunk) >= 4:
             lines.append("          " + " ".join(chunk))
             chunk = []
@@ -405,10 +413,22 @@ def export_odb_to_vtk(
     ascii_format=False,  # kept for backward compat
     write_pvd=False,
     _odb_handle=None,
+    section_point=None,
+    unit_system='',
 ):
     """Export an Abaqus ODB to VTK Unstructured Grid (.vtu) files."""
+    if type(frame_step) is not int or frame_step < 1:
+        raise ValueError("frame_step must be a positive integer")
+    if type(step_index) is not int:
+        raise ValueError("step_index must be an integer")
+    if section_point is not None and (type(section_point) is not int or section_point < 1):
+        raise ValueError('section_point must be a positive integer')
+    if not math.isfinite(deformation_scale) or deformation_scale < 0:
+        raise ValueError("deformation_scale must be finite and nonnegative")
     if fields is None:
         fields = list(DEFAULT_FIELDS)
+    if unit_system not in ('', 'N-mm-s-tonne', 'N-m-s-kg'):
+        raise ValueError('Unsupported declared unit system')
 
     if not output_dir:
         base = os.path.splitext(os.path.basename(odb_path))[0]
@@ -429,7 +449,9 @@ def export_odb_to_vtk(
             raise ValueError("No steps found in ODB.")
         if step_index < 0:
             step_index = len(steps) + step_index
-        step = steps[max(0, min(step_index, len(steps) - 1))]
+        if not 0 <= step_index < len(steps):
+            raise ValueError("step_index out of range")
+        step = steps[step_index]
         print("[VTK Export] Step: %s (%s)" % (step.name, step.procedure))
 
         all_frames = list(step.frames)
@@ -453,20 +475,16 @@ def export_odb_to_vtk(
                 coords_list.append((
                     node.coordinates[0],
                     node.coordinates[1],
-                    node.coordinates[2],
+                    node.coordinates[2] if len(node.coordinates) > 2 else 0.0,
                 ))
             for elem in inst.elements:
-                etype = elem.type.name
+                etype = str(elem.type)
                 vtk_info = ELEMENT_TYPE_MAP.get(etype)
                 if vtk_info is None:
                     try:
                         vtk_info = _lookup_vtk_type(etype)
                     except KeyError:
-                        if etype not in elem_type_info:
-                            print("[VTK Export] WARNING: Unsupported element "
-                                  "type '%s', skipping" % etype)
-                            elem_type_info[etype] = None
-                        continue
+                        raise ValueError('Unsupported element type: ' + etype)
                 if elem_type_info.get(etype) is None:
                     vtk_type, nn = vtk_info
                     elem_type_info[etype] = {
@@ -474,10 +492,40 @@ def export_odb_to_vtk(
                         "num_nodes": nn,
                         "connectivity": [],
                     }
-                conn = [node_map[(iname, n.label)] for n in elem.connectivity]
+                labels = list(elem.connectivity)
+                expected = vtk_info[1]
+                # Beam connectivity can include an extra orientation node.
+                if etype.startswith('B') and len(labels) == expected + 1:
+                    labels = labels[:expected]
+                if len(labels) != expected:
+                    raise ValueError('Unexpected connectivity for ' + etype)
+                if etype.startswith(('B22', 'B32')):
+                    # Abaqus: end, middle, end. VTK: end, end, middle.
+                    labels = [labels[0], labels[2], labels[1]]
+                conn = [node_map[(iname, label)] for label in labels]
                 elem_type_info[etype]["connectivity"].append(conn)
                 total_cells += 1
         num_nodes = len(coords_list)
+        # Connected mesh bodies remain distinct even inside a single ODB instance.
+        parent = list(range(num_nodes))
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+        for info in elem_type_info.values():
+            for conn in info['connectivity']:
+                for i in conn[1:]:
+                    parent[find(i)] = find(conn[0])
+        body_lookup = {}
+        body_ids = []
+        bodies = []
+        for (iname, _), i in node_map.items():
+            key = (iname, find(i))
+            if key not in body_lookup:
+                body_lookup[key] = len(bodies)
+                bodies.append({'id': len(bodies), 'name': iname + ' / body ' + str(len(bodies) + 1)})
+            body_ids.append(body_lookup[key])
         print("[VTK Export] Instances: %s" % instance_names)
         print("[VTK Export] Nodes: %d, Elements: %d" % (num_nodes, total_cells))
         elem_type_info = {k: v for k, v in elem_type_info.items() if v is not None}
@@ -491,7 +539,16 @@ def export_odb_to_vtk(
                 return False
 
         available_field_keys = []
+        contact_sources = {}
         for fname in fields:
+            if fname in CONTACT_FIELDS:
+                for source in last_frame.fieldOutputs.keys():
+                    if source.split()[0] == fname:
+                        alias = fname if source == fname else fname + '_' + hashlib.sha256(source.encode()).hexdigest()[:12]
+                        contact_sources[alias] = source
+                        FIELD_DEFS[alias] = ('nodal', 1, [''], [])
+                        available_field_keys.append(alias)
+                continue
             if fname in FIELD_DEFS:
                 if _field_exists(fname):
                     available_field_keys.append(fname)
@@ -527,17 +584,33 @@ def export_odb_to_vtk(
             "CF": "Contact Force",
         }
 
+        if not available_field_keys:
+            raise ValueError("None of the requested fields are available")
         field_outputs_available = {}
         field_meta_list = []
         for fname in available_field_keys:
+            source_name = contact_sources.get(fname, fname)
             fd = FIELD_DEFS[fname]
             fd_type, ncomp, comps, invariants = fd
+            actual_labels = list(getattr(last_frame.fieldOutputs[source_name], "componentLabels", ()))
+            if actual_labels:
+                comps = actual_labels
+                ncomp = len(comps)
+                if fname == 'U' and ncomp == 2:
+                    comps = comps + ['U3']
+                    ncomp = 3
+            elif ncomp == 1:
+                comps = [""]
+            valid = {str(v).replace("_", "").lower() for v in
+                     getattr(last_frame.fieldOutputs[source_name], "validInvariants", ())}
+            invariants = [inv for inv in invariants if inv.lower() in valid]
             finfo = {
                 "fd_type": fd_type,
                 "ncomp": ncomp,
                 "comps": comps,
                 "invariants": invariants,
-                "label": label_map.get(fname, fname),
+                "label": source_name if fname in contact_sources else label_map.get(fname, fname),
+                "source_name": source_name,
             }
             field_outputs_available[fname] = finfo
             for ci, comp in enumerate(comps):
@@ -549,7 +622,9 @@ def export_odb_to_vtk(
                     "component_index": ci,
                     "ncomp": ncomp,
                     "label": lbl,
-                    "unit": "",
+                    "unit": _field_unit(source_name.split()[0], unit_system),
+                    "association": 'contact' if fname in contact_sources else 'volume',
+                    "source_field": source_name,
                 })
             for inv in invariants:
                 field_meta_list.append({
@@ -558,7 +633,7 @@ def export_odb_to_vtk(
                     "component_index": -1,
                     "ncomp": 1,
                     "label": "%s (%s)" % (finfo["label"], inv),
-                    "unit": "",
+                    "unit": _field_unit(fname, unit_system),
                 })
             print("[VTK Export] Field '%s': type=%s, %d comp(s), "
                   "%d invariant(s)" % (fname, fd_type, ncomp, len(invariants)))
@@ -572,8 +647,11 @@ def export_odb_to_vtk(
             point_data = {}
             for fname, finfo in field_outputs_available.items():
                 try:
-                    fo = frame.fieldOutputs[fname]
+                    fo = frame.fieldOutputs[finfo['source_name']]
                 except Exception:
+                    point_data[fname] = [float('nan')] * (num_nodes * finfo['ncomp'])
+                    for inv in finfo['invariants']:
+                        point_data[fname + '_' + inv] = [float('nan')] * num_nodes
                     continue
                 fd_type = finfo["fd_type"]
                 ncomp = finfo["ncomp"]
@@ -583,7 +661,7 @@ def export_odb_to_vtk(
                     point_data[fname] = vals
                 else:
                     result = _read_elem_nodal_field(
-                        fo, node_map, num_nodes, ncomp, invariants)
+                        fo, node_map, num_nodes, ncomp, invariants, section_point)
                     point_data[fname] = result["data"]
                     for inv, inv_vals in result["invariants"].items():
                         point_data["%s_%s" % (fname, inv)] = inv_vals
@@ -596,6 +674,8 @@ def export_odb_to_vtk(
             except Exception:
                 pass
 
+            if disp_data is not None and not all(math.isfinite(v) for v in disp_data):
+                raise ValueError("Displacement is missing on selected nodes; cannot deform geometry")
             if disp_data is not None and deformation_scale > 0:
                 deformed_coords = [0.0] * (num_nodes * 3)
                 for ni in range(num_nodes):
@@ -619,9 +699,13 @@ def export_odb_to_vtk(
 
             frame_field_ranges = {}
             for fname, vals in point_data.items():
-                frame_field_ranges[fname] = {"min": min(vals), "max": max(vals)}
+                finite = [v for v in vals if math.isfinite(v)]
+                frame_field_ranges[fname] = {"min": min(finite) if finite else None,
+                                             "max": max(finite) if finite else None,
+                                             "missing_count": len(vals) - len(finite)}
             frames_meta.append({
                 "frame": fi,
+                "source_frame": fi * frame_step,
                 "time": frame.frameValue,
                 "vtu_file": os.path.basename(vtu_path),
                 "field_ranges": frame_field_ranges,
@@ -633,9 +717,9 @@ def export_odb_to_vtk(
         global_field_ranges = {}
         for fname in field_outputs_available:
             all_mins = [fm["field_ranges"][fname]["min"]
-                        for fm in frames_meta if fname in fm["field_ranges"]]
+                        for fm in frames_meta if fname in fm["field_ranges"] and fm["field_ranges"][fname]["min"] is not None]
             all_maxs = [fm["field_ranges"][fname]["max"]
-                        for fm in frames_meta if fname in fm["field_ranges"]]
+                        for fm in frames_meta if fname in fm["field_ranges"] and fm["field_ranges"][fname]["min"] is not None]
             if all_mins:
                 global_field_ranges[fname] = {"min": min(all_mins),
                                               "max": max(all_maxs)}
@@ -649,7 +733,17 @@ def export_odb_to_vtk(
             "abaqus_version": str(getattr(odb, "odbVersion", "")),
             "odb_path": odb_path,
             "deformation_scale_factor": deformation_scale,
+            "section_point": section_point,
+            "averaging": {"position": "ELEMENT_NODAL", "method": "equal_contribution",
+                          "invariants": "before_averaging", "across_regions": True},
+            "geometry": "VTK standard connectivity; viewer linearizes high-order cells",
+            "node_ids": [{"instance": key[0], "label": key[1]} for key in node_map],
             "num_nodes": num_nodes,
+            "unit_system": unit_system,
+            "bodies": bodies,
+            "body_ids": body_ids,
+            "missing_requested_fields": [f for f in fields if f not in field_outputs_available and
+                                         not any(s.split()[0] == f for s in contact_sources.values())],
             "num_elements": total_cells,
             "element_types": {
                 k: {"vtk_type": v["vtk_type"],
@@ -664,7 +758,7 @@ def export_odb_to_vtk(
         }
         model_path = os.path.join(output_dir, "model.json")
         with open(model_path, "w", encoding="utf-8") as f:
-            json.dump(model_info, f, indent=2, ensure_ascii=False)
+            json.dump(model_info, f, indent=2, ensure_ascii=False, allow_nan=False)
 
         if write_pvd:
             pvd_path = os.path.join(output_dir, "result.pvd")

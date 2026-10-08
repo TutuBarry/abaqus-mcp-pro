@@ -26,6 +26,7 @@ class AbaqusBridgeClient:
         payload = {
             "id": str(uuid.uuid4()),
             "method": method,
+            "token": os.environ.get("ABAQUS_MCP_TOKEN", ""),
             "params": request_params,
         }
         with socket.create_connection((self.host, self.port), timeout=self.timeout) as sock:
@@ -68,11 +69,11 @@ class FileIPCClient:
 
     def request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         params = dict(params or {})
-        cmd_id = uuid.uuid4().hex[:8]
+        cmd_id = uuid.uuid4().hex
 
         # Map server method to file IPC command type
         cmd_type = self._method_to_type(method)
-        command: dict[str, Any] = {"id": cmd_id, "type": cmd_type, "timestamp": time.time()}
+        command: dict[str, Any] = {"id": cmd_id, "type": cmd_type, "timestamp": time.time(), "expires_at": time.time() + self.timeout, "token": os.environ.get("ABAQUS_MCP_TOKEN", ""), "params": params}
 
         if method == "execute":
             command["script"] = params.get("code", "")
@@ -103,8 +104,9 @@ class FileIPCClient:
         cmd_path = self.commands_dir / f"cmd_{cmd_id}.json"
         result_path = self.results_dir / f"{cmd_id}.json"
 
-        with open(cmd_path, "w", encoding="utf-8") as f:
-            json.dump(command, f, ensure_ascii=False)
+        temp_path = cmd_path.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(command, ensure_ascii=False), encoding="utf-8")
+        os.replace(temp_path, cmd_path)
 
         # Poll for result
         deadline = time.time() + self.timeout

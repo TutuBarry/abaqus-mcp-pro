@@ -7,6 +7,12 @@ inside Abaqus 2024's bundled Python 3.10 without installing project deps there.
 from __future__ import annotations
 
 import ast
+import os
+import hmac
+import hashlib
+import time
+from collections import OrderedDict
+from .protocol import read_message
 import contextlib
 import difflib
 import io
@@ -20,14 +26,14 @@ import threading
 import traceback
 from typing import Any
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 48152
+DEFAULT_HOST = os.environ.get("ABAQUS_MCP_HOST", "127.0.0.1")
+DEFAULT_PORT = int(os.environ.get("ABAQUS_MCP_PORT", "48152"))
 
 _GLOBALS: dict[str, Any] = {
     "__name__": "__ABAQUS_MCP_exec__",
     "__doc__": None,
 }
-_EXEC_LOCK = threading.Lock()
+_EXEC_LOCK = threading.RLock()
 # ── Optional auth token (set via env ABAQUS_MCP_TOKEN) ──
 _AUTH_TOKEN: str | None = None
 import os as _os
@@ -531,21 +537,9 @@ def _format_execution_error(code: str, exc: BaseException, namespace: dict[str, 
     }
 
 
-def _read_message(request: socketserver.BaseRequestHandler) -> dict[str, Any]:
-    chunks: list[bytes] = []
-    while True:
-        chunk = request.request.recv(4096)
-        if not chunk:
-            raise RuntimeError("socket closed before a complete message was received")
-        newline = chunk.find(b"\n")
-        if newline >= 0:
-            chunks.append(chunk[:newline])
-            break
-        chunks.append(chunk)
-    message = json.loads(b"".join(chunks).decode("utf-8"))
-    if not isinstance(message, dict):
-        raise RuntimeError("protocol message must be a JSON object")
-    return message
+def _read_message(request):
+    request.request.settimeout(float(os.environ.get("ABAQUS_MCP_TIMEOUT", "60")))
+    return read_message(request.request, int(os.environ.get("ABAQUS_MCP_MAX_MESSAGE_BYTES", 32 * 1024 * 1024)))
 
 
 def _send_message(request: socketserver.BaseRequestHandler, payload: dict[str, Any]) -> None:
@@ -553,16 +547,16 @@ def _send_message(request: socketserver.BaseRequestHandler, payload: dict[str, A
     request.request.sendall(data + b"\n")
 
 
-_MAX_OUTPUT = 1_000
+_MAX_OUTPUT = 100_000
 
 
-_READ_LOCK = threading.Lock()
+_READ_LOCK = _EXEC_LOCK
 
 def _execute(code: str, read_only: bool = False) -> dict[str, Any]:
     """Execute Python code in Abaqus kernel.
 
-    If read_only=True, uses a shared lock instead of the exclusive lock,
-    allowing concurrent read-only queries.
+    All access is serialized because kernel objects and stdout are shared.
+    read_only is retained for API compatibility; it does not permit concurrency.
     """
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -577,10 +571,10 @@ def _execute(code: str, read_only: bool = False) -> dict[str, Any]:
     else:
         namespace.update({"mdb": mdb, "session": session})
 
-    # Use shared lock for read_only, exclusive lock for write
-    lock: threading.Lock = _READ_LOCK if read_only else _EXEC_LOCK  # type: ignore[assignment]
+    lock = _EXEC_LOCK  # Kernel objects and stdout are shared, including read requests.
 
     with lock, contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        namespace.pop("result", None)
         try:
             try:
                 parsed = ast.parse(code, mode="eval")
@@ -738,14 +732,14 @@ def _odb_summary(params: dict[str, Any]) -> dict[str, Any]:
         for fi, frame in enumerate(step.frames):
             fields = list(frame.fieldOutputs.keys()) if hasattr(frame, "fieldOutputs") else []
             frames_info.append({"index": fi, "time": float(frame.frameValue), "fields": fields})
-        steps_info.append({"name": sname, "procedure": str(getattr(step, "procedure", "")), "num_frames": len(step.frames)})
+        steps_info.append({"name": sname, "procedure": str(getattr(step, "procedure", "")), "num_frames": len(step.frames), "frames": frames_info})
     instances_info = []
     for iname, inst in odb.rootAssembly.instances.items():
         instances_info.append({
             "name": iname,
             "nodes": len(inst.nodes),
             "elements": len(inst.elements),
-            "element_types": list(set(e.type.name for e in inst.elements)),
+            "element_types": sorted(set(str(e.type) for e in inst.elements)),
         })
     return {
         "handle": handle,
@@ -769,7 +763,8 @@ def _mdb_info() -> dict[str, Any]:
                 "loads": list(model.loads.keys()),
                 "boundary_conditions": list(model.boundaryConditions.keys()),
                 "interactions": list(model.interactions.keys()),
-                "constraints": list(model.constraints.keys()),
+                "constraints": list(getattr(model, 'constraints', {}).keys()),
+                "unavailable_repositories": [name for name in ('constraints',) if not hasattr(model, name)],
                 "instances": list(model.rootAssembly.instances.keys()),
                 "sets": list(model.rootAssembly.sets.keys()),
                 "surfaces": list(model.rootAssembly.surfaces.keys()),
@@ -832,27 +827,33 @@ def _extract_field(params: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("ODB has no steps")
     if step_index < 0:
         step_index = len(steps_list) + step_index
+    if not 0 <= step_index < len(steps_list):
+        raise ValueError("step_index out of range")
     step = steps_list[step_index]
     frames_list = list(step.frames)
     if frame_index < 0:
         frame_index = len(frames_list) + frame_index
+    if not 0 <= frame_index < len(frames_list):
+        raise ValueError("frame_index out of range")
     frame = frames_list[frame_index]
     if field_name not in frame.fieldOutputs:
         raise KeyError(f"Field '{field_name}' not found in step {step_index} frame {frame_index}")
     fo = frame.fieldOutputs[field_name]
     values = []
-    for val in fo.values:
-        entry: dict[str, Any] = {"node_label": val.nodeLabel, "element_label": val.elementLabel}
-        if hasattr(val, "data"):
+    valid_invariants = {str(value) for value in getattr(fo, 'validInvariants', ())}
+    for index in range(min(len(fo.values), 5000)):
+        val = fo.values[index]  # Abaqus FieldValueArray does not implement slicing.
+        entry: dict[str, Any] = {"node_label": getattr(val, "nodeLabel", None), "element_label": getattr(val, "elementLabel", None), "instance": getattr(getattr(val, "instance", None), "name", None)}
+        try:
             d = val.data
-            if hasattr(d, "__len__"):
-                entry["data"] = [float(x) for x in d]
-            else:
-                entry["data"] = float(d)
-        if hasattr(val, "mises"):
+        except Exception:
+            d = val.dataDouble
+        if hasattr(d, "__len__"):
+            entry["data"] = [float(x) for x in d]
+        else:
+            entry["data"] = float(d)
+        if 'MISES' in valid_invariants:
             entry["mises"] = float(val.mises)
-        if hasattr(val, "invariants") and val.invariants:
-            entry["invariants"] = {str(k): float(v) for k, v in val.invariants.items()}
         values.append(entry)
     return {
         "field": field_name,
@@ -860,66 +861,107 @@ def _extract_field(params: dict[str, Any]) -> dict[str, Any]:
         "frame": frame_index,
         "frame_time": float(frame.frameValue),
         "values": values[:5000],  # cap at 5000 values
-        "total_values": len(values),
-        "truncated": len(values) > 5000,
+        "total_values": len(fo.values),
+        "truncated": len(fo.values) > 5000,
     }
 
-class AbaqusMcpHandler(socketserver.BaseRequestHandler):
-    def handle(self) -> None:
-        request_id = None
-        try:
-            message = _read_message(self)
-            request_id = message.get("id")
-            method = message.get("method")
-            params = message.get("params") or {}
+METHODS = ("ping", "capabilities", "execute", "odb_open", "odb_close", "odb_list",
+           "odb_summary", "mdb_info", "extract_field", "cleanup", "reset", "request_status")
+_REQUEST_LOCK = threading.RLock()
+_REQUEST_HISTORY = OrderedDict()
 
-            # Auth check (if token is configured)
-            if _AUTH_TOKEN is not None:
-                req_token = params.get("token") or message.get("token")
-                if req_token != _AUTH_TOKEN:
-                    raise PermissionError("Invalid or missing auth token. Set ABAQUS_MCP_TOKEN on server and client.")
 
-            if method == "ping":
-                result = _ping()
+def capabilities():
+    return {"protocol_version": "1.1", "backend": "kernel", "methods": list(METHODS),
+            "serialized": True, "readonly": os.environ.get("ABAQUS_MCP_READ_ONLY") == "1"}
+
+
+def dispatch(method, params=None, request_id=None):
+    import math
+    params = dict(params or {})
+    if method == "request_status":
+        with _REQUEST_LOCK:
+            record = _REQUEST_HISTORY.get(params.get("operation_id"))
+            return dict(record) if record else {"status": "unknown"}
+    operation_id = params.get("operation_id") or request_id
+    duration = float(params.get('timeout', 60))
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('timeout must be finite and positive')
+    semantic_params = {k: v for k, v in params.items() if k not in ('timeout', 'operation_id')}
+    fingerprint = hashlib.sha256(json.dumps([method, semantic_params], sort_keys=True).encode()).hexdigest()
+    if operation_id:
+        with _REQUEST_LOCK:
+            record = _REQUEST_HISTORY.get(operation_id)
+            if record:
+                if record["fingerprint"] != fingerprint:
+                    raise ValueError("operation_id already used with different parameters")
+                if record["status"] == "completed":
+                    return record["result"]
+                raise RuntimeError("Operation already accepted; query request_status before retrying")
+            if len(_REQUEST_HISTORY) >= 128:
+                finished = next((key for key, val in _REQUEST_HISTORY.items()
+                                 if val["status"] in ("completed", "failed", "expired")), None)
+                if finished is None:
+                    raise RuntimeError("Bridge request queue is full")
+                del _REQUEST_HISTORY[finished]
+            _REQUEST_HISTORY[operation_id] = {"status": "queued", "method": method,
+                                             "fingerprint": fingerprint, "accepted_at": time.time()}
+    deadline = time.monotonic() + duration
+    try:
+        with _EXEC_LOCK:
+            if time.monotonic() > deadline:
+                raise TimeoutError("Request expired before execution; no changes applied")
+            if os.environ.get("ABAQUS_MCP_READ_ONLY") == "1":
+                if method in ("execute", "reset") or (method == "odb_open" and not params.get("read_only", True)):
+                    raise PermissionError("Operation disabled by ABAQUS_MCP_READ_ONLY")
+            if operation_id:
+                with _REQUEST_LOCK:
+                    _REQUEST_HISTORY[operation_id]["status"] = "running"
+            if method == "capabilities":
+                result = capabilities()
+            elif method == "ping":
+                result = dict(_ping(), capabilities=capabilities())
             elif method == "execute":
                 code = params.get("code")
                 if not isinstance(code, str) or not code.strip():
                     raise ValueError("params.code must be a non-empty string")
-                read_only = params.get("read_only", False)
-                result = _execute(code, read_only)
-            elif method == "odb_open":
-                result = _odb_open(params)
-            elif method == "odb_close":
-                result = _odb_close(params)
-            elif method == "odb_list":
-                result = _odb_list()
-            elif method == "odb_summary":
-                result = _odb_summary(params)
-            elif method == "mdb_info":
-                result = _mdb_info()
-            elif method == "extract_field":
-                result = _extract_field(params)
-            elif method == "cleanup":
-                result = _cleanup()
-            elif method == "reset":
-                result = _reset()
+                result = _execute(code)
+            elif method in ("odb_open", "odb_close", "odb_summary", "extract_field"):
+                result = {"odb_open": _odb_open, "odb_close": _odb_close,
+                          "odb_summary": _odb_summary, "extract_field": _extract_field}[method](params)
+            elif method in ("odb_list", "mdb_info", "cleanup", "reset"):
+                result = {"odb_list": _odb_list, "mdb_info": _mdb_info,
+                          "cleanup": _cleanup, "reset": _reset}[method]()
             else:
-                raise ValueError(f"unknown method: {method!r}")
+                raise ValueError("unknown method: " + str(method))
+        if operation_id:
+            with _REQUEST_LOCK:
+                _REQUEST_HISTORY[operation_id].update(status="completed", result=result, finished_at=time.time())
+        return result
+    except Exception as exc:
+        if operation_id:
+            with _REQUEST_LOCK:
+                _REQUEST_HISTORY[operation_id].update(status="failed", error=str(exc), finished_at=time.time())
+        raise
 
+
+class AbaqusMcpHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        request_id = None
+        try:
+            message = _read_message(self)
+            request_id = message.get("id")
+            params = message.get("params") or {}
+            if _AUTH_TOKEN is not None:
+                token = params.get("token") or message.get("token") or ""
+                if not isinstance(token, str) or not hmac.compare_digest(token, _AUTH_TOKEN):
+                    raise PermissionError("Invalid or missing auth token")
+            params = {k: v for k, v in params.items() if k != "token"}
+            result = dispatch(message.get("method"), params, request_id)
             _send_message(self, {"id": request_id, "ok": True, "result": result})
         except Exception as exc:
-            _send_message(
-                self,
-                {
-                    "id": request_id,
-                    "ok": False,
-                    "error": {
-                        "message": str(exc),
-                        "type": f"{type(exc).__module__}.{type(exc).__name__}",
-                        "traceback": traceback.format_exc(),
-                    },
-                },
-            )
+            _send_message(self, {"id": request_id, "ok": False,
+                                "error": {"message": str(exc), "type": type(exc).__name__}})
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):

@@ -51,6 +51,9 @@ class CapsuleEntry:
     # Abaqus version info
     abaqus_version: str = ""
     python_version: str = ""
+    capture_error: str = ""
+    schema_version: int = 2
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -72,7 +75,7 @@ class CapsuleStore:
         if store_dir is None:
             store_dir = os.environ.get(
                 "ABAQUS_MCP_CAPSULE_DIR",
-                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".capsules"),
+                os.path.join(os.path.expanduser("~"), ".abaqus-mcp-pro", "capsules"),
             )
         self.store_dir = os.path.abspath(store_dir)
         os.makedirs(self.store_dir, exist_ok=True)
@@ -85,8 +88,11 @@ class CapsuleStore:
     def save(self, capsule: CapsuleEntry) -> str:
         """Save a capsule to disk. Returns the file path."""
         path = self._capsule_path(capsule.capsule_id)
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(capsule.to_dict(), fh, indent=2, ensure_ascii=False, default=str)
+        import uuid
+        temporary = path + "." + uuid.uuid4().hex + ".tmp"
+        with open(temporary, "w", encoding="utf-8") as fh:
+            json.dump(capsule.to_dict(), fh, indent=2, ensure_ascii=False, default=str, allow_nan=False)
+        os.replace(temporary, path)
         return path
 
     def load(self, capsule_id: str) -> CapsuleEntry | None:
@@ -138,6 +144,8 @@ import json as _json
 import os as _os
 import sys as _sys
 import time as _time
+import hashlib as _hashlib
+from datetime import datetime, timezone as _timezone
 
 _capsule_id = __CAPSULE_ID__
 _notes = __NOTES__
@@ -180,7 +188,8 @@ try:
             "loads": list(_m.loads.keys()),
             "boundary_conditions": list(_m.boundaryConditions.keys()),
             "interactions": list(_m.interactions.keys()),
-            "constraints": list(_m.constraints.keys()),
+            "constraints": list(getattr(_m, 'constraints', {}).keys()),
+            "unavailable_repositories": [name for name in ('constraints',) if not hasattr(_m, name)],
         }
     _capsule["model_info"] = _models
 
@@ -194,26 +203,38 @@ try:
             "type": str(getattr(_j, "type", "")),
             "model": str(getattr(_j, "model", "")),
         })
+    _requested = globals().get('_mcp_capsule_job_name', '')
+    if _requested:
+        _jobs = [_job for _job in _jobs if _job['name'] == _requested]
+        if not _jobs:
+            raise ValueError('Requested job not found: ' + _requested)
+    elif len(_jobs) > 1:
+        raise ValueError('Multiple jobs: specify job_name to capture an unambiguous run')
     if _jobs:
-        _capsule["job_name"] = _jobs[-1]["name"]
-        _capsule["job_status"] = _jobs[-1]["status"]
+        _capsule["job_name"] = _jobs[0]["name"]
+        _capsule["job_status"] = _jobs[0]["status"]
 
-    # File inventory (output files for the last job)
+    # File inventory with hashes for the selected job.
     if _jobs:
         _jn = _jobs[-1]["name"]
         for _ext in [".odb", ".sta", ".msg", ".dat", ".log", ".inp", ".prt", ".com"]:
             _fp = _os.path.join(_os.getcwd(), _jn + _ext)
             if _os.path.isfile(_fp):
                 _st = _os.stat(_fp)
+                _sha = _hashlib.sha256()
+                with open(_fp, 'rb') as _stream:
+                    for _chunk in iter(lambda: _stream.read(1024 * 1024), b''):
+                        _sha.update(_chunk)
                 _capsule["files"].append({
                     "name": _jn + _ext,
                     "path": _fp,
                     "size": _st.st_size,
+                    "sha256": _sha.hexdigest(),
                     "mtime": _time.strftime("%Y-%m-%dT%H:%M:%S", _time.localtime(_st.st_mtime)),
                 })
 
 except Exception as _exc:
-    _capsule["error"] = str(_exc)
+    _capsule["capture_error"] = str(_exc)
 
 result = _capsule
 '''

@@ -62,6 +62,7 @@ export const COLORMAPS = {
  * @returns {[number, number, number]} [r, g, b] each in [0,1]
  */
 export function sampleColormap(name, t) {
+  if (!Number.isFinite(t)) return [0.55, 0.55, 0.55];
   const cmap = COLORMAPS[name] || COLORMAPS.jet;
   const stops = cmap.colors;
   const n = stops.length;
@@ -84,7 +85,7 @@ export function colormapToCSS(name) {
   const cmap = COLORMAPS[name] || COLORMAPS.jet;
   const stops = cmap.colors.map((c, i) => {
     const pct = (i / (cmap.colors.length - 1)) * 100;
-    return `${pct}% rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)})`;
+    return `rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)}) ${pct}%`;
   });
   return `linear-gradient(to right, ${stops.join(',')})`;
 }

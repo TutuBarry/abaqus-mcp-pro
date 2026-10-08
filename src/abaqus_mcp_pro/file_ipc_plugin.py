@@ -15,6 +15,10 @@ Usage:
 import base64
 import io
 import json
+import hmac
+import importlib
+import types
+import sys
 import os
 import threading
 import time
@@ -107,8 +111,19 @@ def write_status(status, message=""):
 
 
 def _write_json(path, data):
-    with io.open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    temp = path + "." + uuid.uuid4().hex + ".tmp"
+    with io.open(temp, "w", encoding="utf-8") as stream:
+        json.dump(data, stream, ensure_ascii=False)
+    os.replace(temp, path)
+
+
+def _runtime_agent():
+    name = "_abaqus_file_runtime"
+    if name not in sys.modules:
+        package = types.ModuleType(name)
+        package.__path__ = [os.path.dirname(os.path.abspath(__file__))]
+        sys.modules[name] = package
+    return importlib.import_module(name + ".agent")
 
 
 def _background_self_test(timeout=1.5):
@@ -183,45 +198,8 @@ def _cleanup_stale_commands():
 # ---------------------------------------------------------------------------
 
 def execute_script(script_content, script_id):
-    result = {
-        "id": script_id,
-        "success": False,
-        "output": "",
-        "error": None,
-        "timestamp": time.time(),
-    }
-    script_path = os.path.join(SCRIPTS_DIR, 'script_' + script_id + '.py')
-    try:
-        with io.open(script_path, 'w', encoding='utf-8') as f:
-            f.write(script_content)
-    except Exception as e:
-        result['error'] = str(e)
-        return result
-
-    exec_globals = {'__name__': '__main__', '__file__': script_path}
-    try:
-        from abaqus import mdb, session
-        exec_globals['mdb'] = mdb
-        exec_globals['session'] = session
-    except Exception:
-        pass
-
-    output_lines = []
-    exec_globals['print'] = lambda *a, **k: output_lines.append(' '.join(str(x) for x in a))
-
-    try:
-        with io.open(script_path, 'r', encoding='utf-8') as f:
-            exec(compile(f.read(), script_path, 'exec'), exec_globals)
-        result['success'] = True
-        result['output'] = '\n'.join(output_lines)
-    except Exception as e:
-        result['error'] = str(e)
-        result['traceback'] = traceback.format_exc()
-    try:
-        os.remove(script_path)
-    except Exception:
-        pass
-    return result
+    execution = _runtime_agent().dispatch("execute", {"code": script_content}, script_id)
+    return {"id": script_id, "success": True, "data": execution}
 
 
 def get_model_info():
@@ -355,8 +333,23 @@ def process_command(command):
     result = {'id': cmd_id, 'success': False, 'timestamp': time.time()}
 
     try:
+        expected = os.environ.get("ABAQUS_MCP_TOKEN")
+        token = command.get("token", "")
+        if expected and (not isinstance(token, str) or not hmac.compare_digest(token, expected)):
+            raise PermissionError("Invalid or missing auth token")
+        if time.time() > command.get("expires_at", float("inf")):
+            raise TimeoutError("Request expired before execution")
+        if os.environ.get('ABAQUS_MCP_READ_ONLY') == '1' and cmd_type in ('execute_script', 'submit_job'):
+            raise PermissionError('Operation disabled by ABAQUS_MCP_READ_ONLY')
+        if cmd_type in _runtime_agent().METHODS:
+            result["data"] = _runtime_agent().dispatch(cmd_type, command.get("params", {}), cmd_id)
+            result["success"] = True
+            return result
         if cmd_type == 'execute_script':
-            result = execute_script(command.get('script', ''), cmd_id)
+            params = dict(command.get('params', {}))
+            params['code'] = command.get('script', '')
+            result['data'] = _runtime_agent().dispatch('execute', params, cmd_id)
+            result['success'] = True  # Transport succeeded; execution has its own ok/error payload.
         elif cmd_type == 'get_model_info':
             result['success'] = True
             result['data'] = get_model_info()

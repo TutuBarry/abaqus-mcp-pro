@@ -9,7 +9,7 @@ const VTK_CELL_NODES = {
   1: 1,   // VTK_VERTEX
   3: 2,   // VTK_LINE
   5: 3,   // VTK_TRIANGLE
-  7: 5,   // VTK_PYRAMID
+  14: 5,  // VTK_PYRAMID
   9: 4,   // VTK_QUAD
   10: 4,  // VTK_TETRA
   12: 8,  // VTK_HEXAHEDRON
@@ -36,9 +36,10 @@ const VTK_CELL_NODES = {
  * @returns {object} { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax, vectorFields }
  */
 export function parseVTU(text, options = {}) {
-  const { fieldName } = options;
+  const { fieldName, componentIndex = 0, retainCells = true } = options;
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('Invalid VTU XML');
   const root = doc.documentElement;
 
   if (root.getAttribute('type') !== 'UnstructuredGrid') {
@@ -71,61 +72,22 @@ export function parseVTU(text, options = {}) {
     }
   }
 
-  // PointData Scalars — optionally select by Name
-  let fieldValues = null;
-  let fieldMin = 0;
-  let fieldMax = 1;
-  const vectorFields = {};
-
-  let pdEl = null;
-  if (fieldName) {
-    pdEl = root.querySelector('PointData DataArray[Name="' + fieldName + '"]');
-    if (!pdEl) {
-      console.warn('Field "' + fieldName + '" not found in VTU, falling back to first scalar');
-    }
-  }
-  if (!pdEl) {
-    pdEl = root.querySelector('PointData DataArray[NumberOfComponents="1"]');
-    if (!pdEl) {
-      pdEl = root.querySelector('PointData DataArray:not([NumberOfComponents])');
-    }
-    if (!pdEl) {
-      pdEl = root.querySelector('PointData DataArray');
-    }
-  }
-
-  if (pdEl) {
-    const nc = parseInt(pdEl.getAttribute('NumberOfComponents') || '1');
-    if (nc === 1) {
-      fieldValues = parseDataArray(pdEl);
-    } else {
-      const raw = parseDataArray(pdEl);
-      fieldValues = [];
-      for (let i = 0; i < raw.length; i += nc) {
-        fieldValues.push(raw[i]);
-      }
-    }
-    const valid = fieldValues.filter(v => v != null && !isNaN(v));
-    if (valid.length > 0) {
-      fieldMin = Math.min(...valid);
-      fieldMax = Math.max(...valid);
-    }
-  }
-
-  // Extract all multi-component vector fields (e.g. U: 3-component displacement)
-  const allPdArrays = root.querySelectorAll('PointData DataArray');
-  allPdArrays.forEach(arr => {
-    const nc = parseInt(arr.getAttribute('NumberOfComponents') || '1');
-    if (nc > 1) {
-      const name = arr.getAttribute('Name');
-      if (name) {
-        vectorFields[name] = {
-          values: parseDataArray(arr),
-          ncomp: nc,
-        };
-      }
+  const pointFields = Object.create(null), vectorFields = Object.create(null);
+  root.querySelectorAll('PointData DataArray').forEach(arr => {
+    const name = arr.getAttribute('Name');
+    const ncomp = Number(arr.getAttribute('NumberOfComponents') || 1);
+    if (!Number.isInteger(ncomp) || ncomp < 1) throw new Error('Invalid component count');
+    const values = new Float64Array(parseDataArray(arr));
+    if (values.length !== positions.length / 3 * ncomp) throw new Error('Field/node count mismatch');
+    if (name) {
+      pointFields[name] = {values, ncomp};
+      if (ncomp > 1) vectorFields[name] = pointFields[name];
     }
   });
+  if (positions.some(v => !Number.isFinite(v))) throw new Error('Non-finite geometry');
+  if (offsets.length !== cellTypes.length || (offsets.length && offsets.at(-1) !== connectivity.length)) {
+    throw new Error('Invalid cell offsets');
+  }
 
   // Convert cells to triangle indices and line segments
   const indices = [];
@@ -140,66 +102,80 @@ export function parseVTU(text, options = {}) {
     for (let k = 0; k < nVerts; k++) {
       cell.push(connectivity[cursor + k]);
     }
-    cells.push(cell);
+    if (end <= cursor || cell.some(v => !Number.isInteger(v) || v < 0 || v >= positions.length / 3)) {
+      throw new Error('Invalid cell connectivity');
+    }
+    if (retainCells) cells.push(cell);
     triangulateCell(cell, cellType, indices, lines);
     cursor = end;
   }
 
-  return { positions, indices, lines, cells, cellTypes, fieldValues, fieldMin, fieldMax, vectorFields };
+  return selectVTUField({positions: new Float32Array(positions), indices: new Uint32Array(indices),
+    lines: new Uint32Array(lines), cells: retainCells ? cells : null, cellCount: offsets.length,
+    cellTypes: new Uint8Array(cellTypes), vectorFields, pointFields}, fieldName, componentIndex);
 }
 
-function triangulateCell(cell, cellType, indices, lines) {
-  const n = cell.length;
-  // VTK_LINE = 3, VTK_QUADRATIC_EDGE = 21
+// Return a shallow view; cached coordinates and fields are never modified by deformation.
+export function selectVTUField(parsed, fieldName, componentIndex = 0) {
+  const fields = parsed.pointFields || {};
+  const selectedName = fieldName || Object.keys(fields).find(k => fields[k].ncomp === 1) || Object.keys(fields)[0];
+  const selected = fields[selectedName];
+  if (fieldName && !selected) throw new Error('Requested field missing: ' + fieldName);
+  let fieldValues = null;
+  if (selected) {
+    if (!Number.isInteger(componentIndex) || componentIndex < 0 || componentIndex >= selected.ncomp) throw new Error('Invalid field component index');
+    fieldValues = selected.ncomp === 1 ? selected.values : Float64Array.from(
+      {length: selected.values.length / selected.ncomp}, (_, i) => selected.values[i * selected.ncomp + componentIndex]);
+  }
+  const range = finiteRange(fieldValues || []);
+  return {...parsed, fieldValues, fieldMin: range.min, fieldMax: range.max};
+}
+
+export function finiteRange(values) {
+  let min = Infinity, max = -Infinity, count = 0;
+  for (const value of values) {
+    if (!Number.isFinite(value)) continue;
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+    count++;
+  }
+  return { min: count ? min : 0, max: count ? max : 1, count };
+}
+
+export function filterSurfaceIndices(indices, bodyIds, hiddenBodies, fieldValues, contactOnly) {
+  const hidden = new Set(hiddenBodies);
+  if (!hidden.size && !contactOnly) return indices;
+  const selected = [];
+  for (let i = 0; i < indices.length; i += 3) {
+    const tri = indices.slice(i, i + 3);
+    if (tri.some(n => hidden.has(bodyIds[n]))) continue;
+    if (contactOnly && tri.some(n => !Number.isFinite(fieldValues?.[n]))) continue;
+    selected.push(...tri);
+  }
+  return selected;
+}
+
+// High-order cells are explicitly linearized using their corner nodes.
+export function triangulateCell(cell, cellType, indices, lines) {
+  const required = {1:1, 3:2, 21:3, 5:3, 22:6, 9:4, 23:8, 28:9,
+                    10:4, 24:10, 12:8, 25:20, 13:6, 26:15, 14:5};
+  if (!required[cellType] || cell.length !== required[cellType]) {
+    throw new Error('Unsupported or malformed VTK cell type: ' + cellType);
+  }
+  if (cellType === 1) return;
   if (cellType === 3 || cellType === 21) {
     lines.push(cell[0], cell[1]);
     return;
   }
-  if (n === 3) {
-    // VTK_TRIANGLE
-    indices.push(cell[0], cell[1], cell[2]);
-  } else if (n === 4) {
-    indices.push(cell[0], cell[1], cell[2]);
-    indices.push(cell[0], cell[2], cell[3]);
-  } else if (n === 5) {
-    indices.push(cell[0], cell[1], cell[2]);
-    indices.push(cell[0], cell[2], cell[3]);
-    indices.push(cell[0], cell[1], cell[4]);
-    indices.push(cell[1], cell[2], cell[4]);
-    indices.push(cell[2], cell[3], cell[4]);
-    indices.push(cell[3], cell[0], cell[4]);
-  } else if (n === 6) {
-    indices.push(cell[0], cell[1], cell[2]);
-    indices.push(cell[3], cell[5], cell[4]);
-    indices.push(cell[0], cell[3], cell[4]);
-    indices.push(cell[0], cell[4], cell[1]);
-    indices.push(cell[1], cell[4], cell[5]);
-    indices.push(cell[1], cell[5], cell[2]);
-    indices.push(cell[2], cell[5], cell[3]);
-    indices.push(cell[2], cell[3], cell[0]);
-  } else if (n === 8) {
-    const f = [
-      [0,1,2,3], [4,7,6,5],
-      [0,4,5,1], [1,5,6,2],
-      [2,6,7,3], [3,7,4,0],
-    ];
-    for (const face of f) {
-      indices.push(cell[face[0]], cell[face[1]], cell[face[2]]);
-      indices.push(cell[face[0]], cell[face[2]], cell[face[3]]);
-    }
-  } else if (n === 10) {
-    indices.push(cell[0], cell[1], cell[2]);
-    indices.push(cell[0], cell[2], cell[3]);
-    indices.push(cell[1], cell[3], cell[2]);
-    indices.push(cell[0], cell[3], cell[1]);
-  } else if (n === 20 || n === 15) {
-    const corners = n === 20 ? 8 : 6;
-    const linear = cell.slice(0, corners);
-    triangulateCell(linear, -1, indices, lines);
-  } else {
-    for (let i = 1; i < n - 1; i++) {
-      indices.push(cell[0], cell[i], cell[i + 1]);
-    }
+  let faces;
+  if ([5, 22].includes(cellType)) faces = [[0,1,2]];
+  else if ([9,23,28].includes(cellType)) faces = [[0,1,2,3]];
+  else if ([10,24].includes(cellType)) faces = [[0,2,1],[0,1,3],[1,2,3],[2,0,3]];
+  else if ([12,25].includes(cellType)) faces = [[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+  else if ([13,26].includes(cellType)) faces = [[0,2,1],[3,4,5],[0,1,4,3],[1,2,5,4],[2,0,3,5]];
+  else faces = [[0,3,2,1],[0,1,4],[1,2,4],[2,3,4],[3,0,4]];
+  for (const face of faces) {
+    for (let j = 1; j < face.length - 1; j++) indices.push(cell[face[0]], cell[face[j]], cell[face[j+1]]);
   }
 }
 
@@ -209,7 +185,7 @@ function parseDataArray(el) {
     throw new Error('Only ASCII format DataArray is supported. Found: ' + fmt);
   }
   const text = el.textContent.trim();
-  return text.split(/\s+/).map(Number);
+  return text ? text.split(/\s+/).map(Number) : [];
 }
 
 export async function loadVTU(url, options = {}) {

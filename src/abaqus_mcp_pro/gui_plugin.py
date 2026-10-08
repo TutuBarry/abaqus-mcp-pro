@@ -17,10 +17,9 @@ from abaqusGui import (
 import base64
 import json
 import os
-import platform
 import queue
+import hmac
 import socketserver
-import sys
 import tempfile
 import threading
 import time
@@ -56,17 +55,23 @@ def _send(sock, payload):
 
 
 def _recv(sock):
-    chunks = []
+    sock.settimeout(float(os.environ.get("ABAQUS_MCP_TIMEOUT", "60")))
+    data = bytearray()
+    limit = int(os.environ.get("ABAQUS_MCP_MAX_MESSAGE_BYTES", 32 * 1024 * 1024))
     while True:
         chunk = sock.recv(4096)
         if not chunk:
-            raise RuntimeError("socket closed before a complete message was received")
-        newline = chunk.find(b"\n")
-        if newline >= 0:
-            chunks.append(chunk[:newline])
+            raise RuntimeError("socket closed before message")
+        part, sep, _rest = chunk.partition(b"\n")
+        data.extend(part)
+        if len(data) > limit:
+            raise ValueError("Request exceeds maximum message size")
+        if sep:
             break
-        chunks.append(chunk)
-    return json.loads(b"".join(chunks).decode("utf-8"))
+    message = json.loads(data.decode("utf-8"))
+    if not isinstance(message, dict):
+        raise ValueError("Request must be a JSON object")
+    return message
 
 
 def _kernel_wrapper(code, response_path):
@@ -573,6 +578,7 @@ namespace = globals().setdefault("_ABAQUS_MCP_GLOBALS", {
     "__name__": "__ABAQUS_MCP_exec__",
     "__doc__": None,
 })
+namespace.pop("result", None)
 namespace.update({
     "mdb": _mdb_obj,
     "session": _session_obj,
@@ -668,6 +674,13 @@ class McpGuiHandler(socketserver.BaseRequestHandler):
             request_id = message.get("id")
             method = message.get("method")
             params = message.get("params") or {}
+            expected = os.environ.get("ABAQUS_MCP_TOKEN")
+            token = params.get("token") or message.get("token") or ""
+            if expected and (not isinstance(token, str) or not hmac.compare_digest(token, expected)):
+                raise PermissionError("Invalid or missing auth token")
+            params = {k: v for k, v in params.items() if k != "token"}
+            if method != "request_status":
+                params.setdefault("operation_id", request_id)
             _log("request method=%s id=%s" % (method, request_id))
 
             if _DISPATCHER is None:
@@ -679,6 +692,7 @@ class McpGuiHandler(socketserver.BaseRequestHandler):
             _log("queued method=%s id=%s" % (method, request_id))
 
             if not item.event.wait(wait_timeout):
+                item.cancelled = True
                 raise TimeoutError("timed out waiting for GUI dispatcher")
             if item.error is not None:
                 raise item.error
@@ -719,40 +733,28 @@ class GuiRequest:
         self.event = threading.Event()
         self.result = None
         self.error = None
+        self.cancelled = False
+        self.deadline = time.monotonic() + float(params.get("timeout", 60))
 
 
 def _handle_on_gui_thread(item):
-    method = item.method
-    params = item.params
-    timeout = float(params.get("timeout") or os.environ.get("ABAQUS_MCP_TIMEOUT", "60"))
-
-    if method == "ping":
-        code = (
-            "import os, sys, platform\n"
-            "from abaqus import mdb, session\n"
-            "result = {'python': sys.version, 'executable': sys.executable, "
-            "'platform': platform.platform(), 'pid': os.getpid(), "
-            "'cpu_count': os.cpu_count(), "
-            "'abaqus_version': getattr(session, 'version', None), "
-            "'models': list(mdb.models.keys()), "
-            "'viewports': list(session.viewports.keys())}"
-        )
-        result = _run_kernel_code(code, timeout)
-        result = result["return_value"]
-        result["guiProcess"] = {
-            "python": sys.version,
-            "platform": platform.platform(),
-            "thread": threading.current_thread().name,
-        }
-        return result
-
-    if method == "execute":
-        code = params.get("code")
-        if not isinstance(code, str) or not code.strip():
-            raise ValueError("params.code must be a non-empty string")
-        return _run_kernel_code(code, timeout)
-
-    raise ValueError("unknown method: %r" % method)
+    if item.cancelled or time.monotonic() > item.deadline:
+        raise TimeoutError("Request expired before execution; no changes applied")
+    runtime_parent = os.path.dirname(os.path.abspath(__file__))
+    code = (
+        "import sys\n"
+        "sys.path.insert(0, %r)\n"
+        "from abaqus_mcp_pro_runtime import agent as _mcp_agent\n"
+        "result = _mcp_agent.dispatch(%r, %r)\n"
+    ) % (runtime_parent, item.method, item.params)
+    response = _run_kernel_code(code, float(item.params.get("timeout", 60)))
+    if not response.get("ok"):
+        raise RuntimeError(response.get("core_error", "Kernel dispatch failed"))
+    result = response["return_value"]
+    if item.method in ("ping", "capabilities"):
+        target = result.get("capabilities", result)
+        target["backend"] = "gui"
+    return result
 
 
 def start_gui_agent():
@@ -869,14 +871,14 @@ toolset = getAFXApp().getAFXMainWindow().getPluginToolset()
 toolset.registerGuiMenuButton(
     object=McpGuiActionForm(toolset, "start"),
     buttonText="ABAQUS MCP Pro|Start MCP Bridge",
-    version="1.0.0",
+    version="1.1.0rc2",
     applicableModules=["Part", "Property", "Assembly", "Step", "Interaction", "Load", "Mesh", "Job", "Visualization"],
     description="Start the TCP bridge for the active Abaqus/CAE session.",
 )
 toolset.registerGuiMenuButton(
     object=McpGuiActionForm(toolset, "stop"),
     buttonText="ABAQUS MCP Pro|Stop MCP Bridge",
-    version="1.0.0",
+    version="1.1.0rc2",
     applicableModules=["Part", "Property", "Assembly", "Step", "Interaction", "Load", "Mesh", "Job", "Visualization"],
     description="Stop the TCP bridge.",
 )

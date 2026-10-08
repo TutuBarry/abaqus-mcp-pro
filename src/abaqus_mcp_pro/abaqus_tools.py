@@ -22,7 +22,7 @@ async def create_elastic_material(
     """Create a linear elastic material in Abaqus."""
     density_block = ""
     if density is not None:
-        density_block = f"mat.Density(table=(({density!r},)),)"
+        density_block = f"mat.Density(table=(({density!r},),))"
     code = f"""
 import json
 try:
@@ -54,7 +54,7 @@ async def create_plastic_material(
     plastic_table = f"({yield_stress!r}, {plastic_strain!r})"
     density_block = ""
     if density is not None:
-        density_block = f"mat.Density(table=(({density!r},)),)"
+        density_block = f"mat.Density(table=(({density!r},),))"
     code = f"""
 import json
 try:
@@ -63,7 +63,7 @@ try:
     model = mdb.models[{model_name!r}]
     mat = model.Material(name={name!r})
     mat.Elastic(table=(({youngs_modulus!r}, {poisson_ratio!r}),))
-    mat.Plastic(table=({plastic_table}))
+    mat.Plastic(table=({plastic_table},))
     {density_block}
     result = {{"ok": True, "material": {name!r}, "model": {model_name!r}, "yield_stress": {yield_stress!r}}}
 except Exception as e:

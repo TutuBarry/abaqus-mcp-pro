@@ -13,7 +13,7 @@ You should see a confirmation message in the Abaqus message area.
 ### Codex
 
 ```bash
-codex mcp add abaqus-mcp-pro -- python_path "absolute/path/to/server.py"
+codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
 ```
 
 ### Claude Desktop
@@ -59,3 +59,13 @@ Once connected, your AI client can use all MCP tools. Try asking:
 > "Show me the current model info"
 
 The AI will call `get_model_info` and display your Abaqus model structure.
+
+
+## Project history and result comparisons (1.1.0rc2)
+
+```bash
+abaqus-mcp-pro-project history runs
+abaqus-mcp-pro-project compare runs/<run-id> --output reports/scan
+```
+
+MCP tools: `list_project_runs`, `compare_project_runs`. Reports include JSON, CSV and standalone HTML. Units and KPI selectors must match to compare values; failed cases remain visible and cannot become baselines. The viewer ODB panel also provides authenticated export-task history and diagnostic log tails. See [rc2 delivery](../DELIVERY_RC2_2026-09-30.md).

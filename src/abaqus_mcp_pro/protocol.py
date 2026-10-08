@@ -24,17 +24,17 @@ def read_message(sock: socket.socket, max_bytes: int = 16 * 1024 * 1024) -> dict
         if not chunk:
             raise ProtocolError("socket closed before a complete message was received")
         newline = chunk.find(b"\n")
-        if newline >= 0:
-            chunks.append(chunk[:newline])
-            break
-        chunks.append(chunk)
-        total += len(chunk)
+        piece = chunk[:newline] if newline >= 0 else chunk
+        chunks.append(piece)
+        total += len(piece)
         if total > max_bytes:
             raise ProtocolError(f"message exceeded {max_bytes} bytes")
+        if newline >= 0:
+            break
 
     try:
         message = json.loads(b"".join(chunks).decode("utf-8"))
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ProtocolError(f"invalid JSON message: {exc}") from exc
     if not isinstance(message, dict):
         raise ProtocolError("protocol message must be a JSON object")

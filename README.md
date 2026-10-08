@@ -42,10 +42,20 @@ The AI handles every step through MCP tools, and the model updates live in your 
 
 ---
 
+## Engineering validation status
+
+2026-09-30: **1.1.0rc2** adds parsed-frame caching and geometry reuse, authenticated task history, friction/plastic contact examples, and project comparison reports. 391 Python and 43 frontend tests pass. Real CAE menu start/stop, GUI job submission/monitoring and ODB access passed on Abaqus 2026. Browser visual/GPU and other Abaqus versions remain unverified. See [rc2 evidence and limitations](docs/DELIVERY_RC2_2026-09-30.md).
+
+Historical baseline: On 2026-09-28, the six reference cases and three-point load scan passed on a real local Abaqus 2026 installation. ODB/VTU numerical comparisons and noGUI kernel/socket checks passed; 379 software tests pass. GUI menu interaction, other Abaqus versions and large-model performance remain unverified. See [real validation evidence](docs/ABAQUS_2026_VALIDATION.md). See [delivery evidence](docs/DELIVERY_2026-09-26.md), [capabilities and migration](docs/CAPABILITIES.md), and [reference workflow](examples/verification/README.md).
+
 ## Quick Start
 
 ```bash
 # 1. Install
+cd viewer
+npm ci
+npm run build
+cd ..
 pip install -e .
 abaqus-mcp-pro-setup
 
@@ -53,7 +63,7 @@ abaqus-mcp-pro-setup
 #    Plug-ins > ABAQUS MCP Pro > Start MCP Bridge
 
 # 3. Connect your AI client
-codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
+codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
 
 # 4. Start talking to Abaqus
 #    "Create a tensile bar model with steel properties..."
@@ -70,7 +80,7 @@ codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
 TCP socket bridge. No file I/O, no polling.
 </td>
 <td width="33%" align="center">
-<h3>125 MCP Tools</h3>
+<h3>138 MCP Tools</h3>
 Model . Job . ODB . KPI . Capsule . Contract . Report . Viewport . Doctor
 </td>
 <td width="33%" align="center">
@@ -81,7 +91,7 @@ Geometry, mesh, and results update in your current Abaqus window.
 <tr>
 <td align="center">
 <h3>3D Result Viewer</h3>
-ODB to VTU to Three.js browser visualization. Vite + FastAPI, zero npm.
+ODB to VTU to Three.js browser visualization. Vite + authenticated Python HTTP service; built assets included in wheels.
 </td>
 <td align="center">
 <h3>Solver Doctor</h3>
@@ -108,7 +118,7 @@ Bridge listens on 127.0.0.1:48152. Data never leaves your machine.
          | stdio (MCP)
          v
 +------------------+
-|  MCP Server      |  server.py - 125 tools, 13 prompts, 74 resources
+|  MCP Server      |  server.py - 138 tools, 13 prompts, 74 resources
 |  (Python)        |
 +--------+---------+
          | TCP :48152
@@ -149,6 +159,10 @@ no intermediate JSON conversion, no cloud upload.
 
 ## Browser 3D Result Viewer
 
+**1.1.0rc2 (2026-09-30, local release candidate)** defaults static results to the final frame and Mises, adds CPRESS/COPEN/CSHEAR/CSLIP with contact-pair identity, independent mesh-body visibility and contact-output surface filtering. Units are explicitly declared, never inferred. See [iteration evidence and remaining gates](docs/DELIVERY_2026-09-30.md).
+
+Successful `submit_job_no_gui(wait=True)` calls automatically export and return `viewer.url`; `submit_job(wait=True)` does the same when its ODB is locally accessible. After a nonblocking job completes, call `open_result_viewer(odb_path, unit_system)`. Use `view_result=False` to disable automatic export. Batch reference verification supports `abaqus-mcp-pro-verify --run --viewer`; solver acceptance and viewer status are recorded separately.
+
 > **ODB to VTU to Three.js. One command.**
 
 ```bash
@@ -158,6 +172,8 @@ python viewer/serve_viewer.py
 ```
 
 Enter an ODB path, click **Export from ODB**, and inspect results instantly:
+
+The ordinary startup URL opens an empty viewer without loading a sample or historical result. After export, `?task=<task ID>` in the address bar identifies that exact result and preserves it on refresh. To open the result in another browser, append the server's startup `#token=...` fragment. Missing or failed results show an error without falling back to a sample. The top bar shows the source ODB path.
 
 - **Orbit / pan / zoom** with OrbitControls
 - **Field coloring** - S, U, PEEQ, RF, E, SDV with jet colormap & legend
@@ -280,6 +296,10 @@ create_instance, rotate_instance, translate_instance, create_reference_point
 ### Install
 
 ```bash
+cd viewer
+npm ci
+npm run build
+cd ..
 pip install -e .
 abaqus-mcp-pro-setup          # Install GUI plugin into Abaqus
 ```
@@ -374,7 +394,7 @@ abaqus-mcp-pro/
 |   +-- pywinauto_tools.py        # Windows GUI automation
 +-- viewer/
 |   +-- serve_viewer.py           # One-click viewer server
-|   +-- viewer_server.py          # FastAPI viewer server
+|   +-- viewer_server.py          # legacy viewer launcher
 |   +-- cache.py                  # Export cache manager
 |   +-- package.json              # Vite + Three.js
 |   +-- vite.config.js            # Vite build config
@@ -443,3 +463,13 @@ abaqus-mcp-pro/
 Made with for the CAE community
 
 </div>
+
+
+## Project history and result comparisons (1.1.0rc2)
+
+```bash
+abaqus-mcp-pro-project history runs
+abaqus-mcp-pro-project compare runs/<run-id> --output reports/scan
+```
+
+MCP tools: `list_project_runs`, `compare_project_runs`. Reports include JSON, CSV and standalone HTML. Units and KPI selectors must match to compare values; failed cases remain visible and cannot become baselines. The viewer ODB panel also provides authenticated export-task history and diagnostic log tails. See [rc2 delivery](docs/DELIVERY_RC2_2026-09-30.md).

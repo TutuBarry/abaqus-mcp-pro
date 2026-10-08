@@ -1,0 +1,612 @@
+{
+  "version": "1.1.0rc2",
+  "date": "2026-09-30",
+  "python_tests": 391,
+  "frontend_tests": 43,
+  "pyflakes": "passed",
+  "mcp_surface": {
+    "tools": 138,
+    "prompts": 13,
+    "resources": 74
+  },
+  "contact_extensions": {
+    "extensions": [
+      {
+        "mode": "friction",
+        "passed": true,
+        "checks": {
+          "completed_time": true,
+          "force_balance_1e-5": true,
+          "artificial_energy_below_5_percent": true,
+          "contact_pressure_present": true,
+          "nonnegative_contact_pressure": true,
+          "contact_opening_present": true,
+          "limited_penetration": true,
+          "finite_contact_metrics": true,
+          "friction_dissipation_positive": true
+        },
+        "force_N": 379.0562418475747,
+        "energies": {
+          "ALLSE": 28.269947052001953,
+          "ALLAE": 0.09147766977548599,
+          "ALLPD": 0.0,
+          "ALLFD": 33.402061462402344
+        },
+        "peeq_max": null
+      },
+      {
+        "mode": "plastic",
+        "passed": true,
+        "checks": {
+          "completed_time": true,
+          "force_balance_1e-5": true,
+          "artificial_energy_below_5_percent": true,
+          "contact_pressure_present": true,
+          "nonnegative_contact_pressure": true,
+          "contact_opening_present": true,
+          "limited_penetration": true,
+          "finite_contact_metrics": true,
+          "plastic_strain_activated": true,
+          "plastic_dissipation_positive": true
+        },
+        "force_N": 218.0612107515335,
+        "energies": {
+          "ALLSE": 7.5942277908325195,
+          "ALLAE": 0.0964708924293518,
+          "ALLPD": 9.520025253295898,
+          "ALLFD": 0.0
+        },
+        "peeq_max": 0.049241866916418076
+      }
+    ],
+    "convergence": [
+      {
+        "family": "flat",
+        "levels": [
+          {
+            "refinement": "1",
+            "passed": true,
+            "force_N": 33932.399490356445,
+            "area_mm2": 64.0,
+            "peak_pressure_MPa": 658.7247314453125,
+            "peak_mises_MPa": 648.4375610351562,
+            "pressure_force_relative_difference": 1.3490459818649017e-09
+          },
+          {
+            "refinement": "1.5",
+            "passed": true,
+            "force_N": 34305.64398574829,
+            "area_mm2": 63.99999999999999,
+            "peak_pressure_MPa": 899.3839111328125,
+            "peak_mises_MPa": 856.848876953125,
+            "pressure_force_relative_difference": 1.6343120779827525e-08
+          },
+          {
+            "refinement": "2",
+            "passed": true,
+            "force_N": 34108.044662475586,
+            "area_mm2": 64.0,
+            "peak_pressure_MPa": 798.2203369140625,
+            "peak_mises_MPa": 783.9976196289062,
+            "pressure_force_relative_difference": 1.7894651204426452e-09
+          }
+        ],
+        "last_two_relative_changes": {
+          "force_N": 0.00579333483429194,
+          "area_mm2": 1.1102230246251565e-16,
+          "peak_pressure_MPa": 0.12673640289578517,
+          "peak_mises_MPa": 0.09292280422828557
+        },
+        "within_5_percent": {
+          "force_N": true,
+          "area_mm2": true,
+          "peak_pressure_MPa": false,
+          "peak_mises_MPa": false
+        }
+      },
+      {
+        "family": "curved",
+        "levels": [
+          {
+            "refinement": "1",
+            "passed": true,
+            "force_N": 374.1133031845093,
+            "area_mm2": 45.0,
+            "peak_pressure_MPa": 40.74494934082031,
+            "peak_mises_MPa": 29.248552322387695,
+            "pressure_force_relative_difference": 0.0015330742165406259
+          },
+          {
+            "refinement": "1.5",
+            "passed": true,
+            "force_N": 399.43648341298103,
+            "area_mm2": 30.66666698455811,
+            "peak_pressure_MPa": 38.18715286254883,
+            "peak_mises_MPa": 28.15166664123535,
+            "pressure_force_relative_difference": 0.0025345724417411854
+          },
+          {
+            "refinement": "2",
+            "passed": true,
+            "force_N": 406.3672926425934,
+            "area_mm2": 27.25,
+            "peak_pressure_MPa": 39.51267623901367,
+            "peak_mises_MPa": 28.982107162475586,
+            "pressure_force_relative_difference": 0.002784960234379774
+          }
+        ],
+        "last_two_relative_changes": {
+          "force_N": 0.0170555292098966,
+          "area_mm2": 0.1253822746626829,
+          "peak_pressure_MPa": 0.033546788085086994,
+          "peak_mises_MPa": 0.028653559128214198
+        },
+        "within_5_percent": {
+          "force_N": true,
+          "area_mm2": false,
+          "peak_pressure_MPa": true,
+          "peak_mises_MPa": true
+        }
+      }
+    ],
+    "extension_checks_passed": true,
+    "note": "Illustrative materials; area is undeformed projected nodal estimate. Each convergence metric is reported independently."
+  },
+  "gui_acceptance": {
+    "menu_start": true,
+    "job_submission_and_monitoring": true,
+    "odb_open_summary_close": true,
+    "menu_stop_and_port_closed": true,
+    "evidence": "rc2-gui-session/report.json"
+  },
+  "browser_acceptance": {
+    "status": "blocked",
+    "reason": "Browser connection failed; native browser state rejected because URL could not be identified reliably. Computer Use stopped for this turn."
+  },
+  "solid_contact_scaling": {
+    "status": "timed_out",
+    "timeout_seconds": 600,
+    "nodes": 124138,
+    "elements": 114688,
+    "cpus": 2,
+    "last_completed_step_time": 0.07,
+    "completed": false,
+    "exported": false,
+    "note": "Retained incomplete solver outputs; not an accepted result or performance pass."
+  },
+  "real_viewer_cpu": {
+    "scope": "Real VTU, Node CPU parse and scene buffer update; excludes browser/GPU",
+    "cases": [
+      {
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-viewer-exports\\28f5e1a593d941c8a17a4ea4de76b458\\model.json",
+        "nodes": 16758,
+        "cold": {
+          "readMs": 6.717199999999991,
+          "parseMs": 127.29060000000004,
+          "acquireMs": 134.43449999999999,
+          "cacheHit": false,
+          "reusedGeometry": false,
+          "totalMs": 144.0989,
+          "sceneMs": 9.6644,
+          "retainedCacheBytes": 5632784
+        },
+        "warm": [
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.00889999999998281,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 10.351499999999987,
+            "sceneMs": 10.342600000000004,
+            "retainedCacheBytes": 5632784
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.009200000000021191,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 10.517200000000003,
+            "sceneMs": 10.507999999999981,
+            "retainedCacheBytes": 5632784
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.017800000000022465,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 4.528699999999958,
+            "sceneMs": 4.5108999999999355,
+            "retainedCacheBytes": 5632784
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.0072999999999865395,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 8.612599999999986,
+            "sceneMs": 8.6053,
+            "retainedCacheBytes": 5632784
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.010699999999985721,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 7.850900000000024,
+            "sceneMs": 7.8402000000000385,
+            "retainedCacheBytes": 5632784
+          }
+        ],
+        "rssBytes": 169529344
+      },
+      {
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-viewer-exports\\83b8b0b7865e4f8099cc94cd29ba3ac3\\model.json",
+        "nodes": 10001,
+        "cold": {
+          "readMs": 1.073599999999999,
+          "parseMs": 20.400900000000036,
+          "acquireMs": 21.529499999999985,
+          "cacheHit": false,
+          "reusedGeometry": false,
+          "totalMs": 26.333399999999983,
+          "sceneMs": 4.803899999999999,
+          "retainedCacheBytes": 530332
+        },
+        "warm": [
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.007400000000018281,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 3.7041000000000395,
+            "sceneMs": 3.696700000000021,
+            "retainedCacheBytes": 530332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.006199999999978445,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 1.471900000000005,
+            "sceneMs": 1.4657000000000266,
+            "retainedCacheBytes": 530332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.004300000000000637,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 3.639599999999973,
+            "sceneMs": 3.6352999999999724,
+            "retainedCacheBytes": 530332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.005200000000002092,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 4.120999999999981,
+            "sceneMs": 4.115799999999979,
+            "retainedCacheBytes": 530332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.010800000000017462,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 5.099800000000016,
+            "sceneMs": 5.088999999999999,
+            "retainedCacheBytes": 530332
+          }
+        ],
+        "rssBytes": 173907968
+      },
+      {
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-viewer-exports\\6867259e00df473494d9ad25189d4d58\\model.json",
+        "nodes": 100001,
+        "cold": {
+          "readMs": 12.56189999999998,
+          "parseMs": 161.56850000000003,
+          "acquireMs": 174.1828,
+          "cacheHit": false,
+          "reusedGeometry": false,
+          "totalMs": 186.0822,
+          "sceneMs": 11.899400000000014,
+          "retainedCacheBytes": 5300332
+        },
+        "warm": [
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.00909999999998945,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 35.33969999999999,
+            "sceneMs": 35.330600000000004,
+            "retainedCacheBytes": 5300332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.030700000000024374,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 32.03609999999992,
+            "sceneMs": 32.005399999999895,
+            "retainedCacheBytes": 5300332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.0181999999999789,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 28.651700000000005,
+            "sceneMs": 28.633500000000026,
+            "retainedCacheBytes": 5300332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.02030000000002019,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 14.05090000000007,
+            "sceneMs": 14.03060000000005,
+            "retainedCacheBytes": 5300332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.013199999999983447,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 12.470299999999952,
+            "sceneMs": 12.457099999999969,
+            "retainedCacheBytes": 5300332
+          }
+        ],
+        "rssBytes": 285794304
+      },
+      {
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-viewer-exports\\45fd3ec322224f2b9c6e82e2f1ac6218\\model.json",
+        "nodes": 1000001,
+        "cold": {
+          "readMs": 94.93060000000003,
+          "parseMs": 2406.8122,
+          "acquireMs": 2501.825,
+          "cacheHit": false,
+          "reusedGeometry": false,
+          "totalMs": 2744.7406,
+          "sceneMs": 242.91560000000027,
+          "retainedCacheBytes": 53000332
+        },
+        "warm": [
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.012899999999717693,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 247.5938000000001,
+            "sceneMs": 247.58090000000038,
+            "retainedCacheBytes": 53000332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.0136000000002241,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 242.91909999999962,
+            "sceneMs": 242.9054999999994,
+            "retainedCacheBytes": 53000332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.013800000000628643,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 248.64459999999963,
+            "sceneMs": 248.630799999999,
+            "retainedCacheBytes": 53000332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.014100000000325963,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 230.0009,
+            "sceneMs": 229.98679999999968,
+            "retainedCacheBytes": 53000332
+          },
+          {
+            "readMs": 0,
+            "parseMs": 0,
+            "acquireMs": 0.01979999999912252,
+            "cacheHit": true,
+            "reusedGeometry": true,
+            "totalMs": 249.57719999999972,
+            "sceneMs": 249.5574000000006,
+            "retainedCacheBytes": 53000332
+          }
+        ],
+        "rssBytes": 805482496
+      }
+    ]
+  },
+  "synthetic_viewer_cpu": {
+    "scope": "Synthetic full ASCII parse and CPU buffers, excludes GPU and solver",
+    "cases": [
+      {
+        "nodes": 10000,
+        "cells": 1250,
+        "parseMs": 14.206999999999994,
+        "coldBuildMs": 6.573500000000024,
+        "reusedBuildMs": 4.026099999999985,
+        "reusedGeometry": true,
+        "rssBytes": 68743168
+      },
+      {
+        "nodes": 100000,
+        "cells": 12500,
+        "parseMs": 66.35,
+        "coldBuildMs": 26.145999999999958,
+        "reusedBuildMs": 17.9212,
+        "reusedGeometry": true,
+        "rssBytes": 157511680
+      },
+      {
+        "nodes": 1000000,
+        "cells": 125000,
+        "parseMs": 575.1159000000001,
+        "coldBuildMs": 115.81999999999994,
+        "reusedBuildMs": 116.048,
+        "reusedGeometry": true,
+        "rssBytes": 400162816
+      }
+    ]
+  },
+  "npm_audit": {
+    "known_vulnerabilities": 0
+  },
+  "cross_version": "not_verified_only_2026_installed",
+  "remote_ci": "not_run",
+  "public_release": false,
+  "packaging": {
+    "status": "local_candidate_checks_passed",
+    "checks": [
+      "isolated wheel install",
+      "stdio handshake and registered surface",
+      "packaged authenticated viewer HTTP",
+      "twine wheel/sdist metadata"
+    ],
+    "hashes": "../audit-artifacts/release-rc2-checksums.json",
+    "note": "Final artifact hashes are recorded outside the package after build."
+  },
+  "real_rod_scaling": {
+    "scope": "Real connected T3D2 rod; U-only export, not solid-contact or GPU scaling",
+    "cases": [
+      {
+        "elements": 10000,
+        "nodes": 10001,
+        "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\10000",
+        "status": "passed",
+        "solver_seconds": 17.216357999946922,
+        "validation": {
+          "u_mm": 0.0476190485060215,
+          "reaction_N": -1000.0,
+          "passed": true
+        },
+        "export": {
+          "task_id": "83b8b0b7865e4f8099cc94cd29ba3ac3",
+          "request_id": "705bad9f9fbc403c902c75288d8c95ec",
+          "fingerprint": "0b0e34d87c9be9a6b4c9a916215a0e83dfd4e4471412fd1c782e699a53ee10c5",
+          "status": "completed",
+          "created_at": 1790742350.7402148,
+          "params": {
+            "odb_path": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\10000\\analysis.odb",
+            "step_index": -1,
+            "frame_step": 1,
+            "deformation_scale": 1.0,
+            "fields": [
+              "U"
+            ],
+            "unit_system": "N-mm-s-tonne"
+          },
+          "output_url": "/exports/83b8b0b7865e4f8099cc94cd29ba3ac3/model.json",
+          "started_at": 1790742350.743528,
+          "node_count": 10001,
+          "elem_count": 10000,
+          "frame_count": 2,
+          "finished_at": 1790742352.379402
+        },
+        "export_seconds": 2.0353957999614067
+      },
+      {
+        "elements": 100000,
+        "nodes": 100001,
+        "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\100000",
+        "status": "passed",
+        "solver_seconds": 23.629055699973833,
+        "validation": {
+          "u_mm": 0.047619037330150604,
+          "reaction_N": -999.9996337890625,
+          "passed": true
+        },
+        "export": {
+          "task_id": "6867259e00df473494d9ad25189d4d58",
+          "request_id": "d81777bc6e0c4841bcc245eab12fda6d",
+          "fingerprint": "380f1a9c0e514fe7bd5cc017411e60a85bd0d4a0e1ac612c9b9bcf4e7d91dbc7",
+          "status": "completed",
+          "created_at": 1790742377.1684191,
+          "params": {
+            "odb_path": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\100000\\analysis.odb",
+            "step_index": -1,
+            "frame_step": 1,
+            "deformation_scale": 1.0,
+            "fields": [
+              "U"
+            ],
+            "unit_system": "N-mm-s-tonne"
+          },
+          "output_url": "/exports/6867259e00df473494d9ad25189d4d58/model.json",
+          "started_at": 1790742377.1720612,
+          "node_count": 100001,
+          "elem_count": 100000,
+          "frame_count": 2,
+          "finished_at": 1790742397.764706
+        },
+        "export_seconds": 20.99323149997508
+      },
+      {
+        "elements": 1000000,
+        "nodes": 1000001,
+        "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\1000000",
+        "status": "passed",
+        "solver_seconds": 97.53835300001083,
+        "validation": {
+          "u_mm": 0.04761806130409241,
+          "reaction_N": -999.9759521484375,
+          "passed": true
+        },
+        "export": {
+          "task_id": "45fd3ec322224f2b9c6e82e2f1ac6218",
+          "request_id": "2e9f0dff678a4830a7fb6ea5e03f4221",
+          "fingerprint": "287703fb47b579d83b63ba027727f1c80dd4cafe8d3b841eadafc4de8986504d",
+          "status": "completed",
+          "created_at": 1790742498.4671228,
+          "params": {
+            "odb_path": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\rc2-real-scaling\\1000000\\analysis.odb",
+            "step_index": -1,
+            "frame_step": 1,
+            "deformation_scale": 1.0,
+            "fields": [
+              "U"
+            ],
+            "unit_system": "N-mm-s-tonne"
+          },
+          "output_url": "/exports/45fd3ec322224f2b9c6e82e2f1ac6218/model.json",
+          "started_at": 1790742498.470139,
+          "node_count": 1000001,
+          "elem_count": 1000000,
+          "frame_count": 2,
+          "finished_at": 1790742731.860758
+        },
+        "export_seconds": 233.9202263999614
+      }
+    ]
+  }
+}

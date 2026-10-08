@@ -1,0 +1,64 @@
+{
+  "date": "2026-09-26",
+  "scope": "local repair candidate; not a solver qualification",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+  "python_tests": {
+    "passed": 374,
+    "failed": 0
+  },
+  "python_coverage": {
+    "covered": 2094,
+    "statements": 4956,
+    "percent": 42.25181598062954
+  },
+  "frontend": {
+    "tests_passed": 15,
+    "production_build": "passed",
+    "million_value_range_test": "passed",
+    "full_million_node_render": "not_measured"
+  },
+  "lint": "pyflakes passed",
+  "diff_check": "passed",
+  "python_310_syntax_files": 35,
+  "packaging": {
+    "sdist_to_wheel_build": "passed",
+    "twine_check": "passed",
+    "isolated_install": "passed",
+    "mcp_dependency_tested": "2.2.0",
+    "tools": 135,
+    "prompts": 13,
+    "resources": 74,
+    "stdio_initialize_tools_resources": "passed",
+    "viewer_assets": "present",
+    "plugin_runtime": "present",
+    "reference_inputs": 6
+  },
+  "browser": {
+    "sample_nodes": 3365,
+    "sample_elements": 2500,
+    "sample_frames": 11,
+    "last_frame_navigation": "passed",
+    "initial_console_errors": 0,
+    "section_point_input": "present",
+    "invalid_odb_path": "shows error; no success"
+  },
+  "solver": {
+    "installed": false,
+    "cases": 6,
+    "status": "solver_unavailable",
+    "numerical_acceptance": "not_verified",
+    "version_matrix_2024_2025_2026": "not_verified"
+  },
+  "parameter_study": {
+    "cases": 3,
+    "status": "prepared"
+  },
+  "remote_ci": "not_run",
+  "evidence_root": "../../audit-artifacts",
+  "score": {
+    "before": 52.5,
+    "after": 68.75,
+    "interpretation": "subjective engineering maturity, not numerical certification"
+  }
+}

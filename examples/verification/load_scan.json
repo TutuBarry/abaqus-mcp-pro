@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "unit_system": "N-mm-s-tonne",
+  "validation_status": "passed_abaqus_2026_windows_2026-09-28",
+  "cases": [
+    {
+      "id": "rod_load_500",
+      "input_file": "rod.inp",
+      "parameters": {
+        "LOAD": 500
+      },
+      "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+      "queries": [
+        {
+          "query_id": "u",
+          "field": "U",
+          "component": "U1",
+          "region": "PART-1-1/TIP"
+        },
+        {
+          "query_id": "stress",
+          "field": "S",
+          "component": "S11",
+          "region": ""
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF1",
+          "region": "PART-1-1/FIXED",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "u",
+          "kpi_name": "u",
+          "contract_type": "exact",
+          "expected": 0.023809523809523808,
+          "tolerance": 1e-06
+        },
+        {
+          "contract_id": "stress",
+          "kpi_name": "stress",
+          "contract_type": "exact",
+          "expected": 50.0,
+          "tolerance": 0.001
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": -500,
+          "tolerance": 0.01
+        }
+      ]
+    },
+    {
+      "id": "rod_load_1000",
+      "input_file": "rod.inp",
+      "parameters": {
+        "LOAD": 1000
+      },
+      "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+      "queries": [
+        {
+          "query_id": "u",
+          "field": "U",
+          "component": "U1",
+          "region": "PART-1-1/TIP"
+        },
+        {
+          "query_id": "stress",
+          "field": "S",
+          "component": "S11",
+          "region": ""
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF1",
+          "region": "PART-1-1/FIXED",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "u",
+          "kpi_name": "u",
+          "contract_type": "exact",
+          "expected": 0.047619047619047616,
+          "tolerance": 1e-06
+        },
+        {
+          "contract_id": "stress",
+          "kpi_name": "stress",
+          "contract_type": "exact",
+          "expected": 100.0,
+          "tolerance": 0.001
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": -1000,
+          "tolerance": 0.01
+        }
+      ]
+    },
+    {
+      "id": "rod_load_1500",
+      "input_file": "rod.inp",
+      "parameters": {
+        "LOAD": 1500
+      },
+      "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+      "queries": [
+        {
+          "query_id": "u",
+          "field": "U",
+          "component": "U1",
+          "region": "PART-1-1/TIP"
+        },
+        {
+          "query_id": "stress",
+          "field": "S",
+          "component": "S11",
+          "region": ""
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF1",
+          "region": "PART-1-1/FIXED",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "u",
+          "kpi_name": "u",
+          "contract_type": "exact",
+          "expected": 0.07142857142857142,
+          "tolerance": 1e-06
+        },
+        {
+          "contract_id": "stress",
+          "kpi_name": "stress",
+          "contract_type": "exact",
+          "expected": 150.0,
+          "tolerance": 0.001
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": -1500,
+          "tolerance": 0.01
+        }
+      ]
+    }
+  ],
+  "validation_evidence": "../../docs/ABAQUS_2026_VALIDATION.md"
+}

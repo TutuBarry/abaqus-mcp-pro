@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "unit_system": "N-mm-s-tonne",
+  "validation_status": "passed_abaqus_2026_windows_2026-09-28",
+  "cases": [
+    {
+      "id": "axial_rod",
+      "input_file": "rod.inp",
+      "parameters": {
+        "LOAD": 1000
+      },
+      "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+      "queries": [
+        {
+          "query_id": "u",
+          "field": "U",
+          "component": "U1",
+          "region": "PART-1-1/TIP"
+        },
+        {
+          "query_id": "stress",
+          "field": "S",
+          "component": "S11",
+          "region": ""
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF1",
+          "region": "PART-1-1/FIXED",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "u",
+          "kpi_name": "u",
+          "contract_type": "exact",
+          "expected": 0.047619047619047616,
+          "tolerance": 4.7619047619047623e-07
+        },
+        {
+          "contract_id": "stress",
+          "kpi_name": "stress",
+          "contract_type": "exact",
+          "expected": 100,
+          "tolerance": 0.001
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": -1000,
+          "tolerance": 0.01
+        }
+      ]
+    },
+    {
+      "id": "cantilever",
+      "input_file": "beam.inp",
+      "reference": "Euler-Bernoulli u=-PL^3/(3EI); 1% permits shear/discretization effects",
+      "queries": [
+        {
+          "query_id": "u",
+          "field": "U",
+          "component": "U2",
+          "region": "PART-1-1/TIP"
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF2",
+          "region": "PART-1-1/FIXED",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "u",
+          "kpi_name": "u",
+          "contract_type": "exact",
+          "expected": -1.9047619047619047,
+          "tolerance": 0.02
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": 1,
+          "tolerance": 1e-05
+        }
+      ]
+    },
+    {
+      "id": "multiple_instances",
+      "input_file": "instances.inp",
+      "reference": "Identical rods: second load and displacement are twice the first",
+      "queries": [
+        {
+          "query_id": "one",
+          "field": "U",
+          "component": "U1",
+          "region": "ONE/TIP"
+        },
+        {
+          "query_id": "two",
+          "field": "U",
+          "component": "U1",
+          "region": "TWO/TIP"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "one",
+          "kpi_name": "one",
+          "contract_type": "exact",
+          "expected": 0.047619047619047616,
+          "tolerance": 4.7619047619047623e-07
+        },
+        {
+          "contract_id": "two",
+          "kpi_name": "two",
+          "contract_type": "exact",
+          "expected": 0.09523809523809523,
+          "tolerance": 9.523809523809525e-07
+        }
+      ]
+    },
+    {
+      "id": "shell_membrane",
+      "input_file": "shell.inp",
+      "reference": "S11=E*u/L=21; membrane load=stress*width*thickness=210",
+      "queries": [
+        {
+          "query_id": "stress",
+          "field": "S",
+          "component": "S11",
+          "region": "",
+          "section_point": 1
+        },
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF1",
+          "region": "PART-1-1/RIGHT",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "stress",
+          "kpi_name": "stress",
+          "contract_type": "exact",
+          "expected": 21,
+          "tolerance": 0.021
+        },
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": 210,
+          "tolerance": 0.21
+        }
+      ]
+    },
+    {
+      "id": "frictionless_contact",
+      "input_file": "contact.inp",
+      "reference": "Two identical blocks in series: F=EA*delta/(2h)=10; nu=0",
+      "queries": [
+        {
+          "query_id": "reaction",
+          "field": "RF",
+          "component": "RF3",
+          "region": "PART-1-1/BASE",
+          "aggregation": "sum"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "reaction",
+          "kpi_name": "reaction",
+          "contract_type": "exact",
+          "expected": 10,
+          "tolerance": 0.2
+        }
+      ]
+    },
+    {
+      "id": "cantilever_modes",
+      "input_file": "modal.inp",
+      "reference": "First bending mode: beta1^2/(2*pi*L^2)*sqrt(EI/(rho*A))",
+      "queries": [
+        {
+          "query_id": "frequency",
+          "field": "FREQUENCY",
+          "component": "",
+          "region": "",
+          "frame": 1
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "frequency",
+          "kpi_name": "frequency",
+          "contract_type": "exact",
+          "expected": 8.355165944440802,
+          "tolerance": 0.16710331888881605
+        }
+      ]
+    }
+  ],
+  "validation_evidence": "../../docs/ABAQUS_2026_VALIDATION.md"
+}

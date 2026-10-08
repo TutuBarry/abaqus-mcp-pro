@@ -25,6 +25,12 @@
 
 ---
 
+## 工程验证状态
+
+2026-09-30：**1.1.0rc2** 新增解析帧缓存、网格缓冲区复用、结果任务历史、摩擦/弹塑性接触算例及项目对比报告。391 项 Python、43 项前端测试通过；真实 CAE 菜单启停、作业提交/监控及 ODB 操作已在 Abaqus 2026 验收。浏览器目视/GPU及其他 Abaqus 版本仍未验收。详见 [rc2 开发与验收](docs/DELIVERY_RC2_2026-09-30.md)。
+
+历史基线：2026-09-28已在本机Abaqus 2026上通过6个真实参考算例、三点载荷扫描、ODB/VTU数值对照及noGUI内核/socket联调；软件回归379项通过。GUI菜单交互、其他版本及大模型性能仍待验收。详见[真实验收报告](docs/ABAQUS_2026_VALIDATION.md)。详见[交付与复评](docs/DELIVERY_2026-09-26.md)、[能力及迁移说明](docs/CAPABILITIES.md)、[参考算例流程](examples/verification/README.md)。
+
 ## 这是什么？
 
 ABAQUS MCP Pro 通过 TCP Socket 桥接将 AI 助手直接连接到 Abaqus/CAE。
@@ -45,6 +51,10 @@ AI 通过 MCP 工具完成每一步操作，模型在你的 Abaqus 窗口中实�
 
 ```bash
 # 1. 安装
+cd viewer
+npm ci
+npm run build
+cd ..
 pip install -e .
 abaqus-mcp-pro-setup
 
@@ -52,7 +62,7 @@ abaqus-mcp-pro-setup
 #    Plug-ins > ABAQUS MCP Pro > Start MCP Bridge
 
 # 3. 连接 AI 客户端
-codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
+codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
 
 # 4. 开始与 Abaqus 对话
 #    "创建一个拉伸试棒模型，使用钢材料属性..."
@@ -69,7 +79,7 @@ codex mcp add abaqus-mcp-pro -- python "path/to/server.py"
 TCP Socket 桥接。无文件 I/O，无轮询。
 </td>
 <td width="33%" align="center">
-<h3>124 个 MCP 工具</h3>
+<h3>138 个 MCP 工具</h3>
 模型 . 作业 . ODB . KPI . 胶囊 . 合约 . 报告 . 视口 . 医生
 </td>
 <td width="33%" align="center">
@@ -80,7 +90,7 @@ TCP Socket 桥接。无文件 I/O，无轮询。
 <tr>
 <td align="center">
 <h3>3D 结果查看器</h3>
-ODB 到 VTU 到 Three.js 浏览器可视化。Vite + FastAPI。
+ODB 到 VTU 到 Three.js 浏览器可视化。Vite + 认证式 Python HTTP 服务，wheel 内含前端构建。
 </td>
 <td align="center">
 <h3>求解器医生</h3>
@@ -107,7 +117,7 @@ ODB 到 VTU 到 Three.js 浏览器可视化。Vite + FastAPI。
          | stdio (MCP)
          v
 +------------------+
-|  MCP 服务器      |  server.py -- 124 工具, 13 提示词, 74 资源
+|  MCP 服务器      |  server.py -- 138 工具, 13 提示词, 74 资源
 |  (Python)        |
 +--------+---------+
          | TCP :48152
@@ -147,6 +157,10 @@ ODB 到 VTU 到 Three.js 浏览器可视化。Vite + FastAPI。
 
 ## 浏览器 3D 结果查看器
 
+**1.1.0rc2（2026-09-30，本地候选版本）**：静力结果默认最后一帧及 Mises，支持 CPRESS/COPEN/CSHEAR/CSLIP、按接触对区分字段、独立实体隐藏和接触输出表面筛选。单位必须由建模者声明，不从 ODB 数值猜测。详见[本轮开发与验收](docs/DELIVERY_2026-09-30.md)。
+
+`submit_job_no_gui(wait=True)` 成功后默认自动导出并返回 `viewer.url`；`submit_job(wait=True)` 在本机 ODB 可访问时同样支持。非阻塞提交确认完成后调用 `open_result_viewer(odb_path, unit_system)`。设置 `view_result=False` 可关闭自动导出。批量参考验证使用 `abaqus-mcp-pro-verify --run --viewer`，求解验收状态和查看器状态分别记录。
+
 > **ODB 到 VTU 到 Three.js。一条命令。**
 
 ```bash
@@ -156,6 +170,8 @@ python viewer/serve_viewer.py
 ```
 
 输入 ODB 路径，点击 **Export from ODB**，立即查看结果：
+
+普通启动链接不加载任何模型，也不会自动加载示例或历史结果。导出成功后，地址栏中的 `?task=<任务ID>` 绑定本次结果，刷新仍打开同一结果；从其他浏览器打开时，请在该结果链接末尾附上服务启动时的 `#token=...`。结果不存在或导出失败时显示错误，不回退到示例。顶部显示实际 ODB 来源路径。
 
 - **旋转 / 平移 / 缩放** OrbitControls
 - **场变量着色** -- S, U, PEEQ, RF, E, SDV，jet 色图 + 图例
@@ -277,6 +293,10 @@ create_instance, rotate_instance, translate_instance, create_reference_point
 ### 安装
 
 ```bash
+cd viewer
+npm ci
+npm run build
+cd ..
 pip install -e .
 abaqus-mcp-pro-setup          # 安装 GUI 插件到 Abaqus
 ```
@@ -372,7 +392,7 @@ abaqus-mcp-pro/
 |   +-- pywinauto_tools.py        # Windows GUI 自动化
 +-- viewer/
 |   +-- serve_viewer.py           # 一键查看器服务器
-|   +-- viewer_server.py          # FastAPI 查看器服务器
+|   +-- viewer_server.py          # 查看器兼容启动入口
 |   +-- cache.py                  # 导出缓存管理器
 |   +-- package.json              # Vite + Three.js
 |   +-- vite.config.js            # Vite 构建配置
@@ -442,3 +462,13 @@ abaqus-mcp-pro/
 Made with for the CAE community
 
 </div>
+
+
+## 项目历史与结果对比（1.1.0rc2）
+
+```bash
+abaqus-mcp-pro-project history runs
+abaqus-mcp-pro-project compare runs/<run-id> --output reports/scan
+```
+
+MCP 工具：`list_project_runs`、`compare_project_runs`。报告包含 JSON、CSV 和独立 HTML；只有相同单位与 KPI 选择条件的数据参与比较，失败项保留展示且不能作为基准。查看器 ODB 面板还提供需要会话认证的导出任务历史与诊断日志。详见 [rc2 开发与验收](docs/DELIVERY_RC2_2026-09-30.md)。

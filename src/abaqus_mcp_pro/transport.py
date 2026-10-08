@@ -31,6 +31,7 @@ def _socket_request(method: str, params: dict[str, Any] | None = None, timeout: 
     payload = {
         "id": str(uuid.uuid4()),
         "method": method,
+        "token": os.environ.get("ABAQUS_MCP_TOKEN", ""),
         "params": {**(params or {}), "timeout": effective_timeout},
     }
 
@@ -58,7 +59,15 @@ def _file_ipc_request(method: str, params: dict[str, Any] | None = None, timeout
     from .client import FileIPCClient
     effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
     client = FileIPCClient(timeout=effective_timeout)
-    return client.request(method, params or {})
+    envelope = client.request(method, params or {})
+    if not envelope.get("ok"):
+        raise RuntimeError((envelope.get("error") or {}).get("message", "File IPC request failed"))
+    result = envelope["result"]
+    if method == "execute" and isinstance(result, dict) and "return_value" in result:
+        result.setdefault("ok", True)
+        result.setdefault("stdout", result.get("output", ""))
+        result.setdefault("stderr", "")
+    return result
 
 
 async def _bridge_request(method: str, params: dict[str, Any] | None = None, timeout: float | None = None) -> dict[str, Any]:
@@ -85,16 +94,16 @@ async def _bridge_request(method: str, params: dict[str, Any] | None = None, tim
         raise RuntimeError(
             "Abaqus bridge communication timeout (Timeout)\n"
             "Abaqus may be processing a large computation or has frozen\n"
-            "Try clicking Stop & Start MCP Bridge in Abaqus\n"
+            "Query request status before retrying; a timed-out operation may still be running\n"
             f"Bridge address: {DEFAULT_HOST}:{DEFAULT_PORT}\n"
             f"Error details: {exc}\n"
             "\n"
             "Abaqus 桥接器通信超时\n"
             "Abaqus 可能正在处理大型计算或已冻结\n"
-            "请尝试在 Abaqus 中点击 Stop & Start MCP Bridge\n"
+            "请先查询请求状态；超时操作可能仍在执行，勿直接重复提交\n"
             f"桥接器地址：{DEFAULT_HOST}:{DEFAULT_PORT}"
         ) from exc
 
 
-async def _exec(code: str, timeout: float | None = None) -> dict[str, Any]:
-    return await _bridge_request("execute", {"code": code}, timeout)
+async def _exec(code: str, timeout: float | None = None, operation_id: str | None = None) -> dict[str, Any]:
+    return await _bridge_request("execute", {"code": code, **({"operation_id": operation_id} if operation_id else {})}, timeout)

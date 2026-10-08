@@ -8,9 +8,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
@@ -22,6 +23,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build and test viewer
+        working-directory: viewer
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
@@ -38,7 +51,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +61,17 @@ jobs:
           python-version: "3.11"
 
       - name: Build package
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build viewer assets
+        working-directory: viewer
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build distributions
         run: |
           pip install build
           python -m build
@@ -57,3 +80,9 @@ jobs:
         run: |
           pip install twine
           twine check dist/*
+
+      - name: Installed wheel smoke test
+        run: |
+          python -m venv /tmp/abaqus-wheel
+          /tmp/abaqus-wheel/bin/pip install dist/*.whl
+          /tmp/abaqus-wheel/bin/python tests/wheel_smoke.py

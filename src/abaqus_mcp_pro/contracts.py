@@ -13,6 +13,7 @@ Contract types:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -30,7 +31,7 @@ class Contract:
     kpi_name: str  # matches KPI query_id
     contract_type: str = "range"  # range, threshold_gt, threshold_lt, exact, pct_change
     expected: Any = None  # expected value(s)
-    tolerance: float = 0.0  # allowed deviation (absolute for range, relative for exact)
+    tolerance: float = 0.0  # allowed deviation (absolute for range/exact; percent for pct_change)
     severity: str = "error"  # error or warning
     description: str = ""
 
@@ -129,6 +130,10 @@ def _check_single(contract: Contract, kpi_value: Any) -> ContractResult:
             message=f"Cannot convert value '{kpi_value}' to number",
             severity=sev,
         )
+
+    if not math.isfinite(actual) or not math.isfinite(tol) or tol < 0:
+        return ContractResult(contract_id=cid, kpi_name=kpi, passed=False, actual=None,
+                              message="Cannot validate non-finite data or invalid tolerance", severity=sev)
 
     if ctype == "range":
         # expected is [min, max] or {"min": ..., "max": ...}
@@ -242,7 +247,12 @@ def check_contracts(contracts: list[dict], kpis: dict[str, Any]) -> ContractRepo
             ))
         else:
             kpi_value = kpis[contract.kpi_name]
-            report.add_result(_check_single(contract, kpi_value))
+            try:
+                report.add_result(_check_single(contract, kpi_value))
+            except (ValueError, TypeError, OverflowError) as exc:
+                report.add_result(ContractResult(contract_id=contract.contract_id,
+                    kpi_name=contract.kpi_name, passed=False, message="Invalid contract: " + str(exc),
+                    severity=contract.severity))
     return report
 
 

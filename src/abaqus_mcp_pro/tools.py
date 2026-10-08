@@ -11,6 +11,7 @@ from .solver_diagnosis import DIAGNOSE_IN_ABAQUS_CODE
 from .odb_lens import KPI_LENS_CODE
 from .silent_failures import (SILENT_FAILURE_CHECKS_CODE,
                                format_silent_failures_markdown, parse_silent_failures_results)
+from . import __version__
 from .capsule import CapsuleEntry, CapsuleStore, CAPSULE_CAPTURE_CODE, format_capsule_markdown, format_capsule_list_markdown, diff_capsules
 from .contracts import check_contracts, format_contracts_markdown
 from .report import format_report_markdown, build_report, save_report
@@ -270,7 +271,7 @@ async def check_abaqus_connection(timeout: float | None = None) -> str:
     )
 
 
-async def run_python(code: str, timeout: float | None = None) -> dict[str, Any]:
+async def run_python(code: str, timeout: float | None = None, operation_id: str | None = None) -> dict[str, Any]:
     """Execute Python code in the active Abaqus/CAE kernel.
 
     Single-line expressions are evaluated and returned. Multi-line scripts are
@@ -278,7 +279,14 @@ async def run_python(code: str, timeout: float | None = None) -> dict[str, Any]:
     """
     if not code.strip():
         raise ValueError("code must not be empty")
-    return _unwrap_execution_result(await _exec(code, timeout))
+    import uuid
+    operation_id = operation_id or uuid.uuid4().hex
+    try:
+        result = _unwrap_execution_result(await _exec(code, timeout, operation_id))
+    except Exception as exc:
+        raise RuntimeError(f"Operation {operation_id}: {exc}. Query bridge_request_status before retrying a timed-out mutation.") from exc
+    result['operation_id'] = operation_id
+    return result
 
 
 async def execute_script(script: str, timeout: float | None = None) -> str:
@@ -332,7 +340,8 @@ for model_name in mdb.models.keys():
         "loads": _keys(model.loads),
         "boundary_conditions": _keys(model.boundaryConditions),
         "interactions": _keys(model.interactions),
-        "constraints": _keys(model.constraints),
+        "constraints": _keys(getattr(model, 'constraints', {})),
+        "unavailable_repositories": [name for name in ('constraints',) if not hasattr(model, name)],
         "amplitudes": _keys(model.amplitudes),
         "assembly_instances": _keys(model.rootAssembly.instances),
         "sets": _keys(model.rootAssembly.sets),
@@ -397,8 +406,9 @@ result = {"jobs": jobs}
     return _json_string((await run_python(code, timeout)).get("return_value"))
 
 
-async def submit_job(job_name: str, timeout: float | None = None) -> str:
-    """Submit an existing Abaqus job and wait for completion."""
+async def submit_job(job_name: str, timeout: float | None = None, wait: bool = False,
+                     operation_id: str | None = None, view_result: bool = True, unit_system: str = '') -> str:
+    """Submit a job; poll monitor_job_status for completion. wait=True blocks the kernel."""
     if not job_name.strip():
         raise ValueError("job_name must not be empty")
     code = r"""
@@ -408,11 +418,59 @@ job_name = __JOB_NAME__
 if job_name not in mdb.jobs:
     raise KeyError("Job not found: " + job_name)
 job = mdb.jobs[job_name]
+if str(getattr(job, 'status', '')) in ('SUBMITTED', 'RUNNING', 'CHECK_RUNNING'):
+    raise RuntimeError('Job is already active: ' + job_name)
 job.submit(consistencyChecking=False)
-job.waitForCompletion()
-result = {"success": True, "job": job_name, "status": str(getattr(job, "status", "UNKNOWN"))}
-""".replace("__JOB_NAME__", json.dumps(job_name.strip()))
-    return _json_string((await run_python(code, timeout or 3600.0)).get("return_value"))
+if __WAIT__:
+    job.waitForCompletion()
+status = str(getattr(job, 'status', 'UNKNOWN'))
+if status in ('ABORTED', 'TERMINATED') or (__WAIT__ and status != 'COMPLETED'):
+    raise RuntimeError('Job did not complete successfully: ' + status)
+import os
+result = {'success': True, 'job': job_name, 'status': status, 'completed': status == 'COMPLETED',
+          'odb_path': os.path.abspath(job_name + '.odb')}
+""".replace("__JOB_NAME__", json.dumps(job_name.strip())).replace('__WAIT__', repr(bool(wait)))
+    response = await run_python(code, timeout or (3600.0 if wait else 30.0), operation_id)
+    result = response.get('return_value')
+    result['operation_id'] = response['operation_id']
+    if view_result and result.get('completed') and result.get('odb_path'):
+        result['viewer'] = await open_result_viewer(result['odb_path'], unit_system)
+    return _json_string(result)
+
+
+async def open_result_viewer(odb_path: str, unit_system: str = '') -> dict:
+    """Export a completed local ODB and return its authenticated, task-specific 3D URL.
+
+    Call after monitor_job_status confirms completion for nonblocking submissions.
+    Unit system is declared by the caller, never inferred from ODB values.
+    """
+    import anyio
+    from .viewer_bridge import publish_result
+    try:
+        return await anyio.to_thread.run_sync(publish_result, odb_path, unit_system)
+    except Exception as exc:
+        return {'status': 'failed', 'error': str(exc)}
+
+
+async def list_project_runs(output_root: str) -> dict:
+    """List local verification run history, project names, states and evidence paths."""
+    import anyio
+    from .projects import history
+    return {'runs': await anyio.to_thread.run_sync(history, output_root)}
+
+
+async def compare_project_runs(run_paths: list[str], output_dir: str) -> dict:
+    """Write JSON/CSV/HTML KPI comparison reports for local run.json files/directories.
+
+    Units must match; different KPI selectors remain separate. Failed cases do
+    not become comparison baselines. Does not launch a solver or publish files.
+    """
+    import anyio
+    from .projects import compare, export_report
+    rows = await anyio.to_thread.run_sync(compare, run_paths)
+    root = await anyio.to_thread.run_sync(export_report, rows, output_dir)
+    return {'output_dir': str(root), 'rows': len(rows),
+            'files': [str(root / ('comparison.' + ext)) for ext in ('json', 'csv', 'html')]}
 
 
 async def monitor_job_status(job_name: str = "", diagnose: bool = False, timeout: float | None = None) -> dict[str, Any]:
@@ -775,6 +833,7 @@ async def create_capsule(
     capsule_id: str,
     notes: str = "",
     timeout: float | None = None,
+    job_name: str = "",
 ) -> str:
     """Capture current Abaqus session state into an experiment capsule.
 
@@ -792,10 +851,15 @@ async def create_capsule(
         .replace("__CAPSULE_ID__", json.dumps(capsule_id.strip()))
         .replace("__NOTES__", json.dumps(notes.strip()))
     )
+    code = '_mcp_capsule_job_name = ' + repr(job_name) + '\n' + code
     raw_result = await run_python(code, timeout)
     capsule_data = raw_result.get("return_value")
     if not isinstance(capsule_data, dict):
         return f"Capsule creation failed: unexpected result type {type(capsule_data)}"
+    if capsule_data.get('capture_error'):
+        raise RuntimeError('Capsule capture incomplete: ' + capsule_data['capture_error'])
+    capsule_data['provenance'] = {'operation_id': raw_result.get('operation_id', ''),
+                                'selected_job': job_name, 'mcp_version': __version__}
 
     capsule = CapsuleEntry.from_dict(capsule_data)
     path = _store.save(capsule)
@@ -1422,12 +1486,38 @@ async def bridge_reset(timeout: float | None = None) -> str:
     return _json_string(result)
 
 
+async def bridge_capabilities() -> dict[str, Any]:
+    """Return protocol, backend, supported methods and read-only policy."""
+    return await _bridge_request("capabilities")
+
+
+async def bridge_request_status(operation_id: str) -> dict[str, Any]:
+    """Query an accepted operation after timeout; unknown does not mean it never ran."""
+    return await _bridge_request("request_status", {"operation_id": operation_id})
+
+
 def register_tools(mcp) -> None:
+    """Register all MCP tools with the given MCPServer instance."""
     # Inject run_python into aba_utils
     _set_run_python(run_python)
     _set_run_python_ext(run_python)
 
-    """Register all MCP tools with the given MCPServer instance."""
+    from mcp.types import ToolAnnotations
+    readonly = {
+        "ping", "check_abaqus_connection", "get_model_info", "list_jobs", "monitor_job_status",
+        "diagnose_job", "inspect_odb", "get_odb_info", "extract_kpis", "list_capsules",
+        "load_capsule", "compare_capsules", "check_physics_contracts", "check_silent_failures",
+        "check_model_integrity", "converge_advice", "odb_list", "odb_summary", "get_mdb_info",
+        "bridge_extract_field", "bridge_capabilities", "bridge_request_status",
+        "list_project_runs",
+    }
+    def mcp_tool(function):
+        read = function.__name__ in readonly
+        return mcp.tool(annotations=ToolAnnotations(
+            readOnlyHint=read, destructiveHint=not read,
+            idempotentHint=read, openWorldHint=False,
+        ))(function)
+
     # ── Structured Bridge API tools (no string-building) ──
     mcp_tool(odb_open)
     mcp_tool(odb_close)
@@ -1438,8 +1528,8 @@ def register_tools(mcp) -> None:
     mcp_tool(bridge_cleanup)
     mcp_tool(bridge_reset)
 
-    mcp_tool = mcp.tool()
-
+    mcp_tool(bridge_capabilities)
+    mcp_tool(bridge_request_status)
     mcp_tool(ping)
     mcp_tool(check_abaqus_connection)
     mcp_tool(run_python)
@@ -1448,6 +1538,9 @@ def register_tools(mcp) -> None:
     mcp_tool(get_model_info)
     mcp_tool(list_jobs)
     mcp_tool(submit_job)
+    mcp_tool(open_result_viewer)
+    mcp_tool(list_project_runs)
+    mcp_tool(compare_project_runs)
     mcp_tool(monitor_job_status)
     mcp_tool(diagnose_job)
     mcp_tool(inspect_odb)
@@ -1652,7 +1745,7 @@ try:
     if step_index < 0:
         step_index = len(steps) + step_index
     if step_index < 0 or step_index >= len(steps):
-        step_index = 0
+        raise ValueError("step_index out of range")
     step = steps[step_index]
     all_frames = list(step.frames)
     if not all_frames:
@@ -1672,10 +1765,10 @@ try:
         nodes.append(nodes_dict.get(i, [0.0, 0.0, 0.0]))
     elements = {}
     for elem in instance.elements:
-        etype = elem.type.name
+        etype = str(elem.type)
         if etype not in elements:
             elements[etype] = []
-        elements[etype].append([node.label for node in elem.connectivity])
+        elements[etype].append(list(elem.connectivity))
     available_fields = {}
     field_outputs = last_frame.fieldOutputs
     for fname in fields:
@@ -1809,12 +1902,14 @@ async def export_odb_to_vtk(
     Returns:
         JSON string with output_dir, model_json_path, node_count, elem_count, frame_count.
     """
-    helper_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'viewer', 'export', '_vtu_mcp_helper.py')
+    helper_path = os.path.join(os.path.dirname(__file__), 'viewer', 'export', '_vtu_mcp_helper.py')
+    if not os.path.isfile(helper_path):
+        helper_path = os.path.join(os.path.dirname(__file__), '..', '..', 'viewer', 'export', '_vtu_mcp_helper.py')
     helper_path = os.path.abspath(helper_path)
     if not os.path.isfile(helper_path):
         return _json_string({"error": f"VTU helper not found at {helper_path}"})
 
-    viewer_dir = os.path.abspath(os.path.join(helper_path, '..', '..'))
+    viewer_dir = os.path.dirname(os.path.dirname(helper_path))
     with open(helper_path, 'r', encoding='utf-8') as f:
         template = f.read()
 

@@ -1,3 +1,5 @@
+import { FrameCache } from './framecache.js';
+import { finiteRange } from "./vtuparser.js";
 /**
  * Viewer3D — Three.js scene management for FEM results.
  * Handles mesh generation, camera, animation, and rendering.
@@ -8,7 +10,7 @@ import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { sampleColormap } from './colormaps.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { parseVTU } from './vtuparser.js';
+import { parseVTU, selectVTUField, filterSurfaceIndices } from './vtuparser.js';
 
 // ── Element type face definitions (Abaqus node ordering) ──
 const SOLID_FACES = {
@@ -309,6 +311,27 @@ export class Viewer3D {
    * @param {number} options.scaleFactor - deformation scale
    * @param {string} options.colormap - colormap name
    */
+  _disposeGroup(group) {
+    group.traverse(object => {
+      object.geometry?.dispose();
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) material?.dispose();
+    });
+    group.clear();
+  }
+
+  clearResult() {
+    this._loadVersion = (this._loadVersion || 0) + 1;
+    for (const group of [this.meshGroup, this.wireframeGroup, this._lineGroup]) {
+      if (group) this._disposeGroup(group);
+    }
+    this._lastVtuResult = null;
+    this._fileCache = null;
+    this._parsedFrames?.clear();
+    this._prefetchEpoch = (this._prefetchEpoch || 0) + 1;
+    this.lastTimings = null;
+  }
+
   buildScene(data, options = {}) {
     const {
       frameIdx = 0,
@@ -320,8 +343,8 @@ export class Viewer3D {
       fieldMax: optFieldMax,
       preserveCamera = false,  } = options;
 
-    this.meshGroup.clear();
-    this.wireframeGroup.clear();
+    this._disposeGroup(this.meshGroup);
+    this._disposeGroup(this.wireframeGroup);
 
     const nodes = data.nodes || [];
     const elements = data.elements || {};
@@ -345,8 +368,8 @@ export class Viewer3D {
       const fdata = frameData[field.key || field.name];
       if (fdata) {
         fieldVals = fdata.values || fdata;
-        fieldMin = fdata.min !== undefined ? fdata.min : (fieldVals ? Math.min(...fieldVals.filter(v => v !== null && v !== undefined)) : 0);
-        fieldMax = fdata.max !== undefined ? fdata.max : (fieldVals ? Math.max(...fieldVals.filter(v => v !== null && v !== undefined)) : 1);
+        fieldMin = fdata.min !== undefined ? fdata.min : (fieldVals ? finiteRange(fieldVals).min : 0);
+        fieldMax = fdata.max !== undefined ? fdata.max : (fieldVals ? finiteRange(fieldVals).max : 1);
       }
     }
     // Override with custom contour range if provided
@@ -492,7 +515,7 @@ export class Viewer3D {
             indices.push(idx++);
 
             if (fieldVals) {
-              const fv = fieldVals[nodeIdx] != null ? fieldVals[nodeIdx] : 0;
+              const fv = fieldVals[nodeIdx] != null ? fieldVals[nodeIdx] : NaN;
               const tVal = fieldMax > fieldMin ? (fv - fieldMin) / (fieldMax - fieldMin) : 0.5;
               const rgb = this._colormapValue(colormap || 'jet', Math.max(0, Math.min(1, tVal)));
               colors.push(rgb[0], rgb[1], rgb[2]);
@@ -530,13 +553,11 @@ export class Viewer3D {
   }
 
   async buildSceneFromVTU(vtuUrlOrData, options = {}) {
+    const loadVersion = this._loadVersion = (this._loadVersion || 0) + 1;
+    const started = performance.now();
+    const timings = {readMs: 0, parseMs: 0, acquireMs: 0, cacheHit: false, reusedGeometry: false};
+    let prefetch = null;
     const { field = null, frameIdx = 0, colormap = 'jet', deformed = false, scaleFactor = 1.0, fieldMin: optFieldMin, fieldMax: optFieldMax, preserveCamera = false, } = options;
-    this.meshGroup.clear();
-    this.wireframeGroup.clear();
-    // Line group for beams/trusses
-    this._lineGroup = this._lineGroup || new THREE.Group();
-    if (this._lineGroup.parent) this._lineGroup.parent.remove(this._lineGroup);
-    this._lineGroup = new THREE.Group();
 
     // ── Handle model.json metadata (format_version + frames) ──
     if (
@@ -550,55 +571,48 @@ export class Viewer3D {
       if (!frameEntry || !frameEntry.vtu_file) {
         console.error('VTU: no frame file for index', frameIdx, 'frames:', frames.length);
         this._showDropOverlay(true);
-        return;
+        throw new Error('指定结果帧不存在');
       }
 
-      // Resolve VTU file path
-      let vtuUrl = frameEntry.vtu_file;
-      // If vtu_file is relative, resolve against _baseUrl or server root
-      if (!vtuUrl.startsWith('/') && !vtuUrl.startsWith('http') && !vtuUrl.startsWith('file:')) {
-        if (vtuUrlOrData._baseUrl) {
-          const base = vtuUrlOrData._baseUrl;
-          const lastSlash = base.lastIndexOf('/');
-          const baseDir = lastSlash >= 0 ? base.substring(0, lastSlash + 1) : '';
-          vtuUrl = baseDir + vtuUrl;
-        } else {
-          vtuUrl = '/' + vtuUrl;
+      this._parsedFrames ||= new FrameCache();
+      const metadata = vtuUrlOrData;
+      const resolve = entry => {
+        const name = entry.vtu_file;
+        if (/^(https?:|file:|\/)/.test(name)) return name;
+        const base = metadata._baseUrl || '/';
+        return base.slice(0, base.lastIndexOf('/') + 1) + name;
+      };
+      const read = (entry, stats) => async signal => {
+        const t0 = performance.now();
+        const filename = entry.vtu_file.split(/[\\/]/).pop();
+        let text = this._fileCache?.get(filename);
+        if (text === undefined) {
+          const response = await fetch(resolve(entry), {signal});
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          text = await response.text();
         }
+        if (signal.aborted) throw new DOMException('Result changed', 'AbortError');
+        const t1 = performance.now();
+        const parsed = parseVTU(text, {retainCells:false});
+        if (stats) { stats.readMs = t1 - t0; stats.parseMs = performance.now() - t1; }
+        return parsed;
+      };
+      this._parsedFrames.cancelExcept(resolve(frameEntry));
+      let cached;
+      const acquireStarted = performance.now();
+      try { cached = await this._parsedFrames.get(resolve(frameEntry), read(frameEntry, timings)); }
+      catch (error) { if (loadVersion !== this._loadVersion) return; throw error; }
+      timings.acquireMs = performance.now() - acquireStarted;
+      if (loadVersion !== this._loadVersion) return;
+      timings.cacheHit = cached.hit;
+      const fieldName = field ? (field.component_index === -1 ? field.name : (field.key || field.name)) : undefined;
+      vtuUrlOrData = selectVTUField(cached.value, fieldName, Math.max(0, field?.component_index || 0));
+      vtuUrlOrData._metadata = metadata;
+      const neighbor = frames[frameIdx + 1] || frames[frameIdx - 1];
+      if (neighbor && (this._parsedFrames.entries.get(resolve(frameEntry))?.bytes || Infinity) <= this._parsedFrames.maxBytes / 2) {
+        prefetch = () => this._parsedFrames.get(resolve(neighbor), read(neighbor)).catch(() => {});
       }
 
-      // Resolve VTU filename for cache lookup
-      const vtuFilename = frameEntry.vtu_file.split('/').pop().split('\\').pop();
-
-      // Check file cache (uploaded VTU files)
-      let text = null;
-      if (this._fileCache && this._fileCache.has(vtuFilename)) {
-        text = this._fileCache.get(vtuFilename);
-      } else {
-        try {
-          const resp = await fetch(vtuUrl);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          text = await resp.text();
-        } catch (e) {
-          console.error('VTU fetch/parse failed:', vtuUrl, e);
-          if (typeof vtuUrlOrData === 'object' && vtuUrlOrData._baseUrl) {
-            console.warn('Uploaded model.json: VTU files not found in upload or on server.');
-          }
-          this._showDropOverlay(true);
-          return;
-        }
-      }
-
-      try {
-        const fieldName = field ? (field.key || field.name) : undefined;
-        const parsed = parseVTU(text, fieldName ? { fieldName } : {});
-        parsed._metadata = vtuUrlOrData;
-        vtuUrlOrData = parsed;
-      } catch (e) {
-        console.error('VTU parse failed:', e);
-        this._showDropOverlay(true);
-        return;
-      }
     }
 
     let vtuResult;
@@ -607,16 +621,19 @@ export class Viewer3D {
         const resp = await fetch(vtuUrlOrData);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const text = await resp.text();
+        if (loadVersion !== this._loadVersion) return;
         vtuResult = parseVTU(text);
       } catch (e) {
         console.error('VTU fetch failed:', vtuUrlOrData, e);
         this._showDropOverlay(true);
-        return;
+        throw e;
       }
     } else {
       vtuResult = vtuUrlOrData;
     }
-    if (!vtuResult || vtuResult.positions.length === 0) { this._showDropOverlay(true); return; }
+    if (!vtuResult || vtuResult.positions.length === 0) { this._showDropOverlay(true); throw new Error('VTU has no geometry'); }
+    // Reuse GPU buffers when the displayed topology is unchanged.
+    this._lineGroup ||= new THREE.Group();
     this._showDropOverlay(false);
     this._lastVtuResult = vtuResult;
 
@@ -659,19 +676,25 @@ export class Viewer3D {
     if (optFieldMax !== undefined) fieldMax = optFieldMax;
     const allBounds = new THREE.Box3();
     const positions = vtuResult.positions;
-    const indices = vtuResult.indices;
-    const lines = vtuResult.lines || [];
+    const bodyIds = vtuResult._metadata?.body_ids || [];
+    const hidden = new Set(options.hiddenBodies || []);
+    const indices = filterSurfaceIndices(vtuResult.indices, bodyIds, hidden,
+      fieldVals, options.contactOnly && field?.association === 'contact');
+    const lines = [];
+    for (let i = 0; i < (vtuResult.lines || []).length; i += 2) {
+      const a = vtuResult.lines[i], b = vtuResult.lines[i+1];
+      if (!hidden.has(bodyIds[a]) && !hidden.has(bodyIds[b])) lines.push(a, b);
+    }
     const nNodes = positions.length / 3;
     let hasGeom = false;
-    const outPos = [];
-    const outIndices = [];
-    const outColors = [];
+    const outPos = positions;
+    const outColors = fieldVals ? new Float32Array(nNodes * 3) : null;
     let boundsMin = null, boundsMax = null;
     for (let i = 0; i < nNodes; i++) {
       const x = positions[i * 3];
       const y = positions[i * 3 + 1];
       const z = positions[i * 3 + 2];
-      outPos.push(x, y, z);
+
       if (boundsMin === null) { boundsMin = [x, y, z]; boundsMax = [x, y, z]; }
       else {
         if (x < boundsMin[0]) boundsMin[0] = x;
@@ -682,94 +705,113 @@ export class Viewer3D {
         if (z > boundsMax[2]) boundsMax[2] = z;
       }
       if (fieldVals) {
-        const v = (i < fieldVals.length && fieldVals[i] != null) ? fieldVals[i] : 0;
-        const t = fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
+        const v = (i < fieldVals.length && fieldVals[i] != null) ? fieldVals[i] : NaN;
+        const t = !Number.isFinite(v) ? NaN : fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
         const col = sampleColormap(colormap, t);
-        outColors.push(col[0], col[1], col[2]);
+        outColors.set(col, i * 3);
       }
     }
     // --- Mesh (surface/volume) ---
     if (indices.length > 0) {
-      outIndices.push(...indices);
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
-      geom.setIndex(outIndices);
-      if (outColors.length > 0) geom.setAttribute('color', new THREE.Float32BufferAttribute(outColors, 3));
-      geom.computeVertexNormals();
-      const hasColors = outColors.length > 0;
-      const mat = new THREE.MeshStandardMaterial({
-        vertexColors: hasColors,
-        color: hasColors ? 0xffffff : 0x58a6ff,
-        metalness: 0.05,
-        roughness: 0.45,
-        side: THREE.DoubleSide,
-        envMapIntensity: 0.5,
-      });
-      const mesh = new THREE.Mesh(geom, mat);
-      this.meshGroup.add(mesh);
-      const wGeom = geom.clone();
-      const wf = new THREE.Mesh(wGeom, new THREE.MeshBasicMaterial({
-        color: 0x8b949e,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.35,
-      }));
-      wf.visible = false;
-      this.wireframeGroup.add(wf);
+      const existing = this.meshGroup.children[0];
+      const oldIndex = existing?.geometry.index?.array;
+      const reusable = existing && existing.geometry.attributes.position.count === nNodes &&
+        oldIndex?.length === indices.length && oldIndex.every((v, i) => v === indices[i]);
+      const update = geom => {
+        if (geom.attributes.position?.array.length === outPos.length) {
+          geom.attributes.position.array.set(outPos);
+          geom.attributes.position.needsUpdate = true;
+        } else geom.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+        if (outColors) {
+          if (geom.attributes.color?.array.length === outColors.length) {
+            geom.attributes.color.array.set(outColors);
+            geom.attributes.color.needsUpdate = true;
+          } else geom.setAttribute('color', new THREE.Float32BufferAttribute(outColors, 3));
+        } else geom.deleteAttribute('color');
+        geom.computeBoundingBox();
+        geom.computeBoundingSphere();
+      };
+      if (reusable) {
+        update(existing.geometry);
+        update(this.wireframeGroup.children[0].geometry);
+        existing.material.vertexColors = !!outColors;
+        existing.material.color.set(outColors ? 0xffffff : 0x58a6ff);
+        existing.material.needsUpdate = true;
+        timings.reusedGeometry = true;
+      } else {
+        this._disposeGroup(this.meshGroup);
+        this._disposeGroup(this.wireframeGroup);
+        const geom = new THREE.BufferGeometry();
+        update(geom);
+        geom.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+        const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
+          vertexColors: !!outColors, color: outColors ? 0xffffff : 0x58a6ff, side: THREE.DoubleSide,
+        }));
+        this.meshGroup.add(mesh);
+        const wf = new THREE.Mesh(geom.clone(), new THREE.MeshBasicMaterial({
+          color: 0x8b949e, wireframe: true, transparent: true, opacity: 0.35,
+        }));
+        wf.visible = false;
+        this.wireframeGroup.add(wf);
+      }
       hasGeom = true;
     }
 
+    if (!indices.length) {
+      this._disposeGroup(this.meshGroup);
+      this._disposeGroup(this.wireframeGroup);
+    }
     // --- Lines (beams/trusses) ---
     if (lines.length > 0) {
-      const linePositions = [];
-      const lineColors = [];
-      for (let i = 0; i < lines.length; i += 2) {
-        const i0 = lines[i];
-        const i1 = lines[i + 1];
-        const x0 = positions[i0 * 3], y0 = positions[i0 * 3 + 1], z0 = positions[i0 * 3 + 2];
-        const x1 = positions[i1 * 3], y1 = positions[i1 * 3 + 1], z1 = positions[i1 * 3 + 2];
-        linePositions.push(x0, y0, z0, x1, y1, z1);
-        if (fieldVals) {
-          const v0 = (i0 < fieldVals.length && fieldVals[i0] != null) ? fieldVals[i0] : 0;
-          const v1 = (i1 < fieldVals.length && fieldVals[i1] != null) ? fieldVals[i1] : 0;
-          const t0 = fieldMax > fieldMin ? (v0 - fieldMin) / (fieldMax - fieldMin) : 0.5;
-          const t1 = fieldMax > fieldMin ? (v1 - fieldMin) / (fieldMax - fieldMin) : 0.5;
-          const col0 = sampleColormap(colormap, t0);
-          const col1 = sampleColormap(colormap, t1);
-          lineColors.push(col0[0], col0[1], col0[2], col1[0], col1[1], col1[2]);
-        }
+      const existing = this._lineGroup.children[0];
+      const oldIndex = existing?.geometry.index?.array;
+      const reuse = existing && existing.geometry.attributes.position.count === nNodes &&
+        oldIndex?.length === lines.length && oldIndex.every((v,i)=>v===lines[i]);
+      if (!reuse) this._disposeGroup(this._lineGroup);
+      const geometry = reuse ? existing.geometry : new THREE.BufferGeometry();
+      for (const [name, values] of [['position',positions],['color',outColors]]) {
+        if (!values) {geometry.deleteAttribute(name); continue;}
+        if (geometry.attributes[name]?.array.length === values.length) {
+          geometry.attributes[name].array.set(values);
+          geometry.attributes[name].needsUpdate = true;
+        } else geometry.setAttribute(name,new THREE.Float32BufferAttribute(values,3));
       }
-      const lineGeom = new THREE.BufferGeometry();
-      lineGeom.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
-      if (lineColors.length > 0) lineGeom.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
-      const lineMat = new THREE.LineBasicMaterial({
-        vertexColors: lineColors.length > 0,
-        color: lineColors.length > 0 ? 0xffffff : 0x88ccff,
-        linewidth: 1,
-      });
-      const lineSegments = new THREE.LineSegments(lineGeom, lineMat);
-      this._lineGroup.add(lineSegments);
-      this.scene.add(this._lineGroup);
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      if (reuse) {
+        existing.material.vertexColors = !!outColors;
+        existing.material.color.set(outColors ? 0xffffff : 0x88ccff);
+        existing.material.needsUpdate = true;
+        timings.reusedGeometry = true;
+      } else {
+        geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(lines),1));
+        this._lineGroup.add(new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({
+          vertexColors:!!outColors,color:outColors ? 0xffffff : 0x88ccff,
+        })));
+        this.scene.add(this._lineGroup);
+      }
       hasGeom = true;
-    }
+    } else this._disposeGroup(this._lineGroup);
 
     if (!hasGeom) return;
-    if (preserveCamera) {
-      const pos = this.camera.position.clone();
-      const target = this.controls.target.clone();
-      this._fitCamera(allBounds);
-      this.camera.position.copy(pos);
-      this.controls.target.copy(target);
-      this.controls.update();
-    } else {
-      this._fitCamera(allBounds);
+    if (boundsMin) allBounds.set(new THREE.Vector3(...boundsMin), new THREE.Vector3(...boundsMax));
+    this._applyClipping();
+    this.setWireframe(this._wireframeVisible || false);
+    this.lastBuildMs = performance.now() - started;
+    this.lastTimings = {...timings, totalMs: this.lastBuildMs,
+      sceneMs: Math.max(0, this.lastBuildMs - timings.acquireMs),
+      retainedCacheBytes: this._parsedFrames?.bytes || 0};
+    if (prefetch) {
+      const epoch = this._prefetchEpoch;
+      setTimeout(() => { if (epoch === this._prefetchEpoch && loadVersion === this._loadVersion) prefetch(); }, 100);
     }
+    if (!preserveCamera) this._fitCamera(allBounds);
     return { bounds: allBounds };
   }  getVtuStats() {
     if (!this._lastVtuResult) return { nodes: 0, elements: 0 };
     return {
       nodes: Math.floor(this._lastVtuResult.positions.length / 3),
-      elements: (this._lastVtuResult.indices || []).length / 3 >> 0,
+      elements: this._lastVtuResult.cellCount ?? (this._lastVtuResult.cells || []).length,
     };
   }
 
@@ -883,6 +925,7 @@ export class Viewer3D {
     // ── Playback ──
 
   setWireframe(visible) {
+    this._wireframeVisible = visible;
     this.wireframeGroup.children.forEach(c => { c.visible = visible; });
   }
 

@@ -1,0 +1,445 @@
+{
+  "date": "2026-09-30",
+  "version": "1.1.0rc1",
+  "python_tests": 386,
+  "frontend_tests": 32,
+  "mcp_surface": {
+    "tools": 136,
+    "prompts": 13,
+    "resources": 74
+  },
+  "contact_family": {
+    "families": [
+      {
+        "family": "flat",
+        "cases": [
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 33932.399490356445,
+            "opposing_force_N": -33932.39953613281,
+            "force_balance_relative": 1.3490459818649017e-09,
+            "artificial_energy_ratio": 0.0020144538799106754,
+            "mises_MPa": [
+              3.1138031482696533,
+              648.4375610351562
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -4.1470733097570545e-18,
+                "max": 4.228388472693467e-18,
+                "count": 81
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 658.7247314453125,
+                "count": 370
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 370
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 370
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.0052551571279764175,
+                "max": 0.0052551571279764175,
+                "count": 81
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.0052551571279764175,
+                "max": 0.0052551571279764175,
+                "count": 81
+              }
+            },
+            "nodes": 2428,
+            "elements": 1792,
+            "frames": 11,
+            "refinement": 1,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\flat\\1",
+            "reused_solver": true,
+            "solver_and_inspection_seconds": 0.4991646999842487
+          },
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 34305.64398574829,
+            "opposing_force_N": -34305.64422607422,
+            "force_balance_relative": 7.0054340864207184e-09,
+            "artificial_energy_ratio": 0.00042136902583504585,
+            "mises_MPa": [
+              1.8821930885314941,
+              856.848876953125
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -4.411347589300396e-18,
+                "max": 5.908901840045999e-18,
+                "count": 169
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 899.3839111328125,
+                "count": 794
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 794
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 794
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.006076878868043423,
+                "max": 0.006076878868043423,
+                "count": 169
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.006076878868043423,
+                "max": 0.006076878868043423,
+                "count": 169
+              }
+            },
+            "nodes": 7433,
+            "elements": 6048,
+            "frames": 11,
+            "refinement": 1.5,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\flat\\1.5",
+            "reused_solver": false,
+            "solver_and_inspection_seconds": 19.327088200021535
+          },
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 34108.044662475586,
+            "opposing_force_N": -34108.044494628906,
+            "force_balance_relative": 4.921029081217274e-09,
+            "artificial_energy_ratio": 0.0009031839633756563,
+            "mises_MPa": [
+              1.059003233909607,
+              783.9976196289062
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -5.204170427930421e-18,
+                "max": 4.445228907190568e-18,
+                "count": 289
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 798.2203369140625,
+                "count": 1378
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 1378
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 1378
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.005783350672572851,
+                "max": 0.005783350672572851,
+                "count": 289
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.005783350672572851,
+                "max": 0.005783350672572851,
+                "count": 289
+              }
+            },
+            "nodes": 16758,
+            "elements": 14336,
+            "frames": 11,
+            "refinement": 2,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\flat\\2",
+            "reused_solver": false,
+            "solver_and_inspection_seconds": 24.875845399976242
+          }
+        ],
+        "reaction_relative_change_last_two": 0.00579333483429194,
+        "reaction_converged_5_percent": true
+      },
+      {
+        "family": "curved",
+        "cases": [
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 374.1133031845093,
+            "opposing_force_N": -374.1132936477661,
+            "force_balance_relative": 2.549159060339286e-08,
+            "artificial_energy_ratio": 0.003623880472652705,
+            "mises_MPa": [
+              0.029916731640696526,
+              29.248552322387695
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -5.2546400390596215e-14,
+                "max": 0.5619315505027771,
+                "count": 81
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 40.74494934082031,
+                "count": 370
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 370
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 370
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.004702502861618996,
+                "max": 0.004702502861618996,
+                "count": 81
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.004702502861618996,
+                "max": 0.004702502861618996,
+                "count": 81
+              }
+            },
+            "nodes": 2428,
+            "elements": 1792,
+            "frames": 15,
+            "refinement": 1,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\curved\\1",
+            "reused_solver": false,
+            "solver_and_inspection_seconds": 19.109567300009076
+          },
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 399.43648341298103,
+            "opposing_force_N": -399.43649983406067,
+            "force_balance_relative": 4.11106153732137e-08,
+            "artificial_energy_ratio": 0.0010020878188570558,
+            "mises_MPa": [
+              0.018311629071831703,
+              28.15166664123535
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -9.323655562887279e-12,
+                "max": 0.5910372734069824,
+                "count": 169
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 38.18715286254883,
+                "count": 794
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 794
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 794
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.005572016350924969,
+                "max": 0.005572016350924969,
+                "count": 169
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.005572016350924969,
+                "max": 0.005572016350924969,
+                "count": 169
+              }
+            },
+            "nodes": 7433,
+            "elements": 6048,
+            "frames": 15,
+            "refinement": 1.5,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\curved\\1.5",
+            "reused_solver": false,
+            "solver_and_inspection_seconds": 24.7428280999884
+          },
+          {
+            "checks": {
+              "completed_time": true,
+              "force_balance_1e-5": true,
+              "artificial_energy_below_5_percent": true,
+              "contact_pressure_present": true,
+              "nonnegative_contact_pressure": true,
+              "limited_penetration": true
+            },
+            "passed": true,
+            "force_N": 406.3672926425934,
+            "opposing_force_N": -406.3672788143158,
+            "force_balance_relative": 3.4029012271056026e-08,
+            "artificial_energy_ratio": 0.0004503333447195502,
+            "mises_MPa": [
+              0.010233770124614239,
+              28.982107162475586
+            ],
+            "contact": {
+              "COPEN    PUNCH/FOUNDATION": {
+                "min": -4.497640595461233e-13,
+                "max": 0.6075757145881653,
+                "count": 289
+              },
+              "CPRESS   PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 39.51267623901367,
+                "count": 1378
+              },
+              "CSHEAR1  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 1378
+              },
+              "CSHEAR2  PUNCH/FOUNDATION": {
+                "min": 0.0,
+                "max": 0.0,
+                "count": 1378
+              },
+              "CSLIP1   PUNCH/FOUNDATION": {
+                "min": -0.005676418077200651,
+                "max": 0.005676418077200651,
+                "count": 289
+              },
+              "CSLIP2   PUNCH/FOUNDATION": {
+                "min": -0.005676418077200651,
+                "max": 0.005676418077200651,
+                "count": 289
+              }
+            },
+            "nodes": 16758,
+            "elements": 14336,
+            "frames": 15,
+            "refinement": 2,
+            "directory": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\contact-family-20260930\\curved\\2",
+            "reused_solver": false,
+            "solver_and_inspection_seconds": 43.87469530000817
+          }
+        ],
+        "reaction_relative_change_last_two": 0.0170555292098966,
+        "reaction_converged_5_percent": true
+      }
+    ],
+    "passed": true
+  },
+  "contact_export_comparisons": {
+    "flat": 66,
+    "curved": 90,
+    "status": "passed",
+    "method": "native ODB nodal values, every exported frame"
+  },
+  "automatic_submit_export_link": "passed_real_abaqus_2026",
+  "cpu_performance": {
+    "scope": "Node CPU triangulation/reduction; synthetic disconnected hexes, not GPU or solver",
+    "cases": [
+      {
+        "cells": 1000,
+        "nodes": 8000,
+        "triangles": 12000,
+        "elapsed_ms": 3.2970000000000006,
+        "rss_bytes": 40951808,
+        "range": {
+          "min": 10,
+          "max": 10,
+          "count": 8000
+        }
+      },
+      {
+        "cells": 10000,
+        "nodes": 80000,
+        "triangles": 120000,
+        "elapsed_ms": 18.1921,
+        "rss_bytes": 56631296,
+        "range": {
+          "min": 10,
+          "max": 10,
+          "count": 80000
+        }
+      },
+      {
+        "cells": 100000,
+        "nodes": 800000,
+        "triangles": 1200000,
+        "elapsed_ms": 122.4294,
+        "rss_bytes": 188080128,
+        "range": {
+          "min": 10,
+          "max": 10,
+          "count": 800000
+        }
+      }
+    ]
+  },
+  "browser_visual_acceptance": {
+    "status": "blocked",
+    "reason": "Browser connector fetch failed; native Computer Use stopped because current browser URL could not be reliably identified for policy enforcement"
+  },
+  "cae_menu_acceptance": {
+    "status": "not_verified",
+    "reason": "No further UI input after Computer Use stopped"
+  },
+  "large_model_gpu_acceptance": "not_measured",
+  "remote_ci": "not_run",
+  "public_release": false,
+  "packaging": {
+    "status": "passed",
+    "isolated_environment": "wheel-env-20260930",
+    "stdio_roundtrip": true,
+    "installed_viewer_http": true,
+    "artifacts_directory": "audit-artifacts/release-2026-09-30",
+    "checksums": "audit-artifacts/release-checksums-2026-09-30.json"
+  }
+}

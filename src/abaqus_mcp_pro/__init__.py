@@ -22,4 +22,4 @@ Main modules:
     abaqus_mcp_pro.file_ipc_plugin  - File IPC plugin (runs inside Abaqus)
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0rc2"

@@ -13,10 +13,11 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from .tools import register_tools
-from .resources import register_resources
+from . import __version__
 from .prompts import register_prompts
+from .resources import register_resources
 from .skills import register_skill_resources
+from .tools import register_tools
 
 INSTRUCTIONS = """You are controlling a live Abaqus/CAE session through MCP.
 
@@ -74,26 +75,15 @@ plugin can't be installed.
 def _ensure_gui_plugin() -> None:
     """Install the GUI plugin silently if not already present."""
     try:
-        import shutil
-        from importlib import resources
-        from pathlib import Path
-
-        target_dir = Path(os.environ.get("ABAQUS_MCP_PLUGIN_DIR", Path.home() / "abaqus_plugins"))
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target = target_dir / "abaqus_mcp_gui_plugin.py"
-
-        source = resources.files("abaqus_mcp_pro").joinpath("gui_plugin.py")
-        with resources.as_file(source) as src:
-            if target.exists() and target.read_bytes() == Path(src).read_bytes():
-                return
-            shutil.copy2(src, target)
+        from .plugin_install import install_plugin
+        install_plugin()
     except Exception:
         pass
 
 
 _ensure_gui_plugin()
 
-mcp = MCPServer("abaqus-mcp-pro", instructions=INSTRUCTIONS)
+mcp = MCPServer("abaqus-mcp-pro", version=__version__, instructions=INSTRUCTIONS)
 
 register_tools(mcp)
 register_prompts(mcp)

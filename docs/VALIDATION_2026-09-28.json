@@ -1,0 +1,905 @@
+{
+  "date": "2026-09-28",
+  "abaqus_version": "2026",
+  "abaqus_build": "2025_09_23-22.43.03 RELr428 206049",
+  "abaqus_python": "3.10.5",
+  "host_python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "command": "D:\\Program Files\\SIMULIA\\Commands\\abaqus.bat",
+  "suite": {
+    "run_id": "20260928T135106Z_72c295df24c5",
+    "created_at": "2026-09-28T13:51:06.647569+00:00",
+    "manifest_sha256": "bfa287a677e228b0c2615660c97ef01fd715574881cede3633eeb2a2eddf4ea7",
+    "version": "1.0.0",
+    "unit_system": "N-mm-s-tonne",
+    "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+    "solver_command": "D:\\Program Files\\SIMULIA\\Commands\\abaqus.bat",
+    "execution_requested": true,
+    "cases": [
+      {
+        "id": "axial_rod",
+        "status": "passed",
+        "input_sha256": "92a50179f0614d18ab208d58f291d205cf790376d1999ff4addfa95030fa3468",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\rod.inp",
+        "source_sha256": "6797c162c976bb89ad712867ea78b286afca03395b39e7ccf8daaa3c6e7e8786",
+        "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+        "parameters": {
+          "LOAD": 1000
+        },
+        "kpis": {
+          "u": 0.0476190485060215,
+          "stress": 100.0,
+          "reaction": -1000.0
+        },
+        "contracts": {
+          "passed_count": 3,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "u",
+              "kpi_name": "u",
+              "passed": true,
+              "actual": 0.0476190485060215,
+              "expected_display": "= 0.047619047619047616 +/- 4.7619047619047623e-07",
+              "message": "Value 0.047619 == 0.047619",
+              "severity": "error"
+            },
+            {
+              "contract_id": "stress",
+              "kpi_name": "stress",
+              "passed": true,
+              "actual": 100.0,
+              "expected_display": "= 100.0 +/- 0.001",
+              "message": "Value 100 == 100",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": -1000.0,
+              "expected_display": "= -1000.0 +/- 0.01",
+              "message": "Value -1000 == -1000",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "e3c6277bb5527d61817163c1fb30ab3a1bc6f8a4fbbbe1fc5d9eba35e38f052e"
+      },
+      {
+        "id": "cantilever",
+        "status": "passed",
+        "input_sha256": "712a17db4498e80fae6564957adc28491e371efbc4af3ad3a326a2e06a63530b",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\beam.inp",
+        "source_sha256": "712a17db4498e80fae6564957adc28491e371efbc4af3ad3a326a2e06a63530b",
+        "reference": "Euler-Bernoulli u=-PL^3/(3EI); 1% permits shear/discretization effects",
+        "parameters": {},
+        "kpis": {
+          "u": -1.9048374891281128,
+          "reaction": 1.0
+        },
+        "contracts": {
+          "passed_count": 2,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "u",
+              "kpi_name": "u",
+              "passed": true,
+              "actual": -1.9048374891281128,
+              "expected_display": "= -1.9047619047619047 +/- 0.02",
+              "message": "Value -1.90484 == -1.90476",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": 1.0,
+              "expected_display": "= 1.0 +/- 1e-05",
+              "message": "Value 1 == 1",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "e684ff2ee8755617b310bb73e575b0b748224a25dc3716e86978e538070312d1"
+      },
+      {
+        "id": "multiple_instances",
+        "status": "passed",
+        "input_sha256": "cc7e3b7bcf1ec3fae4450484174f09b6c40aa8b068fb5c2baeb4404dcf632dbe",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\instances.inp",
+        "source_sha256": "cc7e3b7bcf1ec3fae4450484174f09b6c40aa8b068fb5c2baeb4404dcf632dbe",
+        "reference": "Identical rods: second load and displacement are twice the first",
+        "parameters": {},
+        "kpis": {
+          "one": 0.0476190485060215,
+          "two": 0.095238097012043
+        },
+        "contracts": {
+          "passed_count": 2,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "one",
+              "kpi_name": "one",
+              "passed": true,
+              "actual": 0.0476190485060215,
+              "expected_display": "= 0.047619047619047616 +/- 4.7619047619047623e-07",
+              "message": "Value 0.047619 == 0.047619",
+              "severity": "error"
+            },
+            {
+              "contract_id": "two",
+              "kpi_name": "two",
+              "passed": true,
+              "actual": 0.095238097012043,
+              "expected_display": "= 0.09523809523809523 +/- 9.523809523809525e-07",
+              "message": "Value 0.0952381 == 0.0952381",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "eb29c93efd737c341fc96a5dfe605928b24e8c4773cd973fa4d9234fccc574c0"
+      },
+      {
+        "id": "shell_membrane",
+        "status": "passed",
+        "input_sha256": "cd169f8146ab9a94408c446d65073201dc3f65b8616a5581724b994b061239fa",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\shell.inp",
+        "source_sha256": "cd169f8146ab9a94408c446d65073201dc3f65b8616a5581724b994b061239fa",
+        "reference": "S11=E*u/L=21; membrane load=stress*width*thickness=210",
+        "parameters": {},
+        "kpis": {
+          "stress": 21.0,
+          "reaction": 210.0
+        },
+        "contracts": {
+          "passed_count": 2,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "stress",
+              "kpi_name": "stress",
+              "passed": true,
+              "actual": 21.0,
+              "expected_display": "= 21.0 +/- 0.021",
+              "message": "Value 21 == 21",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": 210.0,
+              "expected_display": "= 210.0 +/- 0.21",
+              "message": "Value 210 == 210",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "76c68706a097af0ec636daec7e54a9324147e107dbb908f93ce0bcc47af1d309"
+      },
+      {
+        "id": "frictionless_contact",
+        "status": "passed",
+        "input_sha256": "d8042d6d6e510d603f5a77c9ce45675beebee533d8b9b4abcafb128262e7987c",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\contact.inp",
+        "source_sha256": "d8042d6d6e510d603f5a77c9ce45675beebee533d8b9b4abcafb128262e7987c",
+        "reference": "Two identical blocks in series: F=EA*delta/(2h)=10; nu=0",
+        "parameters": {},
+        "kpis": {
+          "reaction": 10.0
+        },
+        "contracts": {
+          "passed_count": 1,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": 10.0,
+              "expected_display": "= 10.0 +/- 0.2",
+              "message": "Value 10 == 10",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "ab6402338ed7a11b3485ce2ed862f2afd979e4c5ae3ed7b04ef24975afea9b00"
+      },
+      {
+        "id": "cantilever_modes",
+        "status": "passed",
+        "input_sha256": "ca41fac343d9c4038d984d507a0b30d428158156b880fb43a4ca1d74d876dc1b",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\modal.inp",
+        "source_sha256": "ca41fac343d9c4038d984d507a0b30d428158156b880fb43a4ca1d74d876dc1b",
+        "reference": "First bending mode: beta1^2/(2*pi*L^2)*sqrt(EI/(rho*A))",
+        "parameters": {},
+        "kpis": {
+          "frequency": 8.3524
+        },
+        "contracts": {
+          "passed_count": 1,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "frequency",
+              "kpi_name": "frequency",
+              "passed": true,
+              "actual": 8.3524,
+              "expected_display": "= 8.355165944440802 +/- 0.16710331888881605",
+              "message": "Value 8.3524 == 8.35517",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "3b9c71959f4b61ebdc41052a74fb0bc85caa9bdca17fc41a8f0e0c0c609c5a7f"
+      }
+    ],
+    "status": "passed",
+    "replay_manifest_sha256": "c8c974a763e369fdebfc46117444ccee7e3272f7b683e77576a9eb1e225852f0"
+  },
+  "load_scan": {
+    "run_id": "20260928T135339Z_3b4237808fa8",
+    "created_at": "2026-09-28T13:53:39.773196+00:00",
+    "manifest_sha256": "4b62191cc7484db76f20c99e98f7f363873e9ad806c150ffdf536322788e6ba6",
+    "version": "1.0.0",
+    "unit_system": "N-mm-s-tonne",
+    "python": "3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]",
+    "solver_command": "D:\\Program Files\\SIMULIA\\Commands\\abaqus.bat",
+    "execution_requested": true,
+    "cases": [
+      {
+        "id": "rod_load_500",
+        "status": "passed",
+        "input_sha256": "0c223c047ba33ec5a89062ebed7410715823ef156d0bfc45d4139e3f12f371dd",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\rod.inp",
+        "source_sha256": "6797c162c976bb89ad712867ea78b286afca03395b39e7ccf8daaa3c6e7e8786",
+        "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+        "parameters": {
+          "LOAD": 500
+        },
+        "kpis": {
+          "u": 0.02380952425301075,
+          "stress": 50.0,
+          "reaction": -500.0
+        },
+        "contracts": {
+          "passed_count": 3,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "u",
+              "kpi_name": "u",
+              "passed": true,
+              "actual": 0.02380952425301075,
+              "expected_display": "= 0.023809523809523808 +/- 1e-06",
+              "message": "Value 0.0238095 == 0.0238095",
+              "severity": "error"
+            },
+            {
+              "contract_id": "stress",
+              "kpi_name": "stress",
+              "passed": true,
+              "actual": 50.0,
+              "expected_display": "= 50.0 +/- 0.001",
+              "message": "Value 50 == 50",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": -500.0,
+              "expected_display": "= -500.0 +/- 0.01",
+              "message": "Value -500 == -500",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "6095699b682a799d32a6382963c618bd08ba174ff1b1e43ff812db5f74ca927d"
+      },
+      {
+        "id": "rod_load_1000",
+        "status": "passed",
+        "input_sha256": "92a50179f0614d18ab208d58f291d205cf790376d1999ff4addfa95030fa3468",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\rod.inp",
+        "source_sha256": "6797c162c976bb89ad712867ea78b286afca03395b39e7ccf8daaa3c6e7e8786",
+        "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+        "parameters": {
+          "LOAD": 1000
+        },
+        "kpis": {
+          "u": 0.0476190485060215,
+          "stress": 100.0,
+          "reaction": -1000.0
+        },
+        "contracts": {
+          "passed_count": 3,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "u",
+              "kpi_name": "u",
+              "passed": true,
+              "actual": 0.0476190485060215,
+              "expected_display": "= 0.047619047619047616 +/- 1e-06",
+              "message": "Value 0.047619 == 0.047619",
+              "severity": "error"
+            },
+            {
+              "contract_id": "stress",
+              "kpi_name": "stress",
+              "passed": true,
+              "actual": 100.0,
+              "expected_display": "= 100.0 +/- 0.001",
+              "message": "Value 100 == 100",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": -1000.0,
+              "expected_display": "= -1000.0 +/- 0.01",
+              "message": "Value -1000 == -1000",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "cba8f77f991a1345c70158a530e12c27da6e7eb91cf5b5a02acb7d8f096b2c6d"
+      },
+      {
+        "id": "rod_load_1500",
+        "status": "passed",
+        "input_sha256": "ec4331c98c416cc239bc3198884b1ef91076ffb613eef35418d661c1b4fcf018",
+        "source": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\abaqus-mcp-pro\\examples\\verification\\rod.inp",
+        "source_sha256": "6797c162c976bb89ad712867ea78b286afca03395b39e7ccf8daaa3c6e7e8786",
+        "reference": "u=FL/(EA); S11=F/A; fixed reaction=-F",
+        "parameters": {
+          "LOAD": 1500
+        },
+        "kpis": {
+          "u": 0.0714285746216774,
+          "stress": 150.0,
+          "reaction": -1500.0
+        },
+        "contracts": {
+          "passed_count": 3,
+          "failed_count": 0,
+          "results": [
+            {
+              "contract_id": "u",
+              "kpi_name": "u",
+              "passed": true,
+              "actual": 0.0714285746216774,
+              "expected_display": "= 0.07142857142857142 +/- 1e-06",
+              "message": "Value 0.0714286 == 0.0714286",
+              "severity": "error"
+            },
+            {
+              "contract_id": "stress",
+              "kpi_name": "stress",
+              "passed": true,
+              "actual": 150.0,
+              "expected_display": "= 150.0 +/- 0.001",
+              "message": "Value 150 == 150",
+              "severity": "error"
+            },
+            {
+              "contract_id": "reaction",
+              "kpi_name": "reaction",
+              "passed": true,
+              "actual": -1500.0,
+              "expected_display": "= -1500.0 +/- 0.01",
+              "message": "Value -1500 == -1500",
+              "severity": "error"
+            }
+          ]
+        },
+        "odb_sha256": "2ad5ad82b0e575db3fbc7c904a86cb90ee194d4601ef1798dac469a98fc1fd62"
+      }
+    ],
+    "status": "passed",
+    "replay_manifest_sha256": "93c042020904e9591f05301f1c830a0f69c3e8ee2f30a3298e19b85d28df5013"
+  },
+  "exports": [
+    {
+      "case": "axial_rod",
+      "status": "passed",
+      "nodes": 2,
+      "elements": 1,
+      "frames": 2,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\axial_rod\\vtk\\model.json"
+    },
+    {
+      "case": "cantilever",
+      "status": "passed",
+      "nodes": 41,
+      "elements": 40,
+      "frames": 2,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\cantilever\\vtk\\model.json"
+    },
+    {
+      "case": "multiple_instances",
+      "status": "passed",
+      "nodes": 4,
+      "elements": 2,
+      "frames": 2,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\multiple_instances\\vtk\\model.json"
+    },
+    {
+      "case": "shell_membrane",
+      "status": "passed",
+      "nodes": 4,
+      "elements": 1,
+      "frames": 2,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\shell_membrane\\vtk\\model.json"
+    },
+    {
+      "case": "frictionless_contact",
+      "status": "passed",
+      "nodes": 16,
+      "elements": 2,
+      "frames": 11,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\frictionless_contact\\vtk\\model.json"
+    },
+    {
+      "case": "cantilever_modes",
+      "status": "passed",
+      "nodes": 41,
+      "elements": 40,
+      "frames": 4,
+      "model": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\cantilever_modes\\vtk\\model.json"
+    }
+  ],
+  "native_comparison": [
+    {
+      "case": "axial_rod",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "u": 0.0476190485060215,
+        "stress": 100.0,
+        "reaction": -1000.0
+      }
+    },
+    {
+      "case": "cantilever",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "u": -1.9048374891281128,
+        "reaction": 1.0
+      }
+    },
+    {
+      "case": "multiple_instances",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "one": 0.0476190485060215,
+        "two": 0.095238097012043
+      }
+    },
+    {
+      "case": "shell_membrane",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "stress": 21.0,
+        "reaction": 210.0
+      }
+    },
+    {
+      "case": "frictionless_contact",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "reaction": 10.0
+      }
+    },
+    {
+      "case": "cantilever_modes",
+      "kpis_equal_native_field_values": true,
+      "vtu_displacements_equal_native_all_frames": true,
+      "native_kpis": {
+        "frequency": 8.3524
+      }
+    }
+  ],
+  "vtu_stress": [
+    {
+      "case": "axial_rod",
+      "status": "passed",
+      "component_index": 0,
+      "values": [
+        100.0,
+        100.0
+      ]
+    },
+    {
+      "case": "multiple_instances",
+      "status": "passed",
+      "component_index": 0,
+      "values": [
+        100.0,
+        100.0,
+        200.0,
+        200.0
+      ]
+    },
+    {
+      "case": "shell_membrane",
+      "status": "passed",
+      "component_index": 0,
+      "values": [
+        21.0,
+        21.0,
+        21.0,
+        21.0
+      ]
+    },
+    {
+      "case": "frictionless_contact",
+      "status": "passed",
+      "component_index": 2,
+      "values": [
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0,
+        -10.0
+      ]
+    }
+  ],
+  "runtime": {
+    "python": "3.10.5 (main, Aug  9 2025, 05:05:40) [MSC v.1934 64 bit (AMD64)]",
+    "checks": [
+      {
+        "name": "kernel_geometry_material_mesh",
+        "status": "passed",
+        "result": {
+          "ok": true,
+          "return_value": {
+            "nodes": 189,
+            "elements": 80,
+            "materials": [
+              "Steel"
+            ]
+          },
+          "stdout": "",
+          "stderr": ""
+        }
+      },
+      {
+        "name": "socket_ping",
+        "status": "passed",
+        "result": {
+          "python": "3.10.5 (main, Aug  9 2025, 05:05:40) [MSC v.1934 64 bit (AMD64)]",
+          "executable": "D:\\Program Files\\SIMULIA\\EstProducts\\2026\\win_b64\\code\\bin\\ABQcaeK.exe",
+          "platform": "Windows-10-10.0.26200-SP0",
+          "thread": "Thread-1 (process_request_thread)",
+          "open_odbs": [],
+          "globals_size": 2828,
+          "models": [
+            "MCP_Verification",
+            "Model-1"
+          ],
+          "viewports": [
+            "Viewport: 1"
+          ],
+          "jobs": [],
+          "abaqus_version": "2026",
+          "capabilities": {
+            "protocol_version": "1.1",
+            "backend": "kernel",
+            "methods": [
+              "ping",
+              "capabilities",
+              "execute",
+              "odb_open",
+              "odb_close",
+              "odb_list",
+              "odb_summary",
+              "mdb_info",
+              "extract_field",
+              "cleanup",
+              "reset",
+              "request_status"
+            ],
+            "serialized": true,
+            "readonly": false
+          }
+        }
+      },
+      {
+        "name": "socket_capabilities",
+        "status": "passed",
+        "result": {
+          "protocol_version": "1.1",
+          "backend": "kernel",
+          "methods": [
+            "ping",
+            "capabilities",
+            "execute",
+            "odb_open",
+            "odb_close",
+            "odb_list",
+            "odb_summary",
+            "mdb_info",
+            "extract_field",
+            "cleanup",
+            "reset",
+            "request_status"
+          ],
+          "serialized": true,
+          "readonly": false
+        }
+      },
+      {
+        "name": "socket_mdb_info",
+        "status": "passed",
+        "result": {
+          "models": {
+            "MCP_Verification": {
+              "parts": [
+                "Block"
+              ],
+              "materials": [
+                "Steel"
+              ],
+              "steps": [
+                "Initial",
+                "Load"
+              ],
+              "loads": [],
+              "boundary_conditions": [],
+              "interactions": [],
+              "constraints": [],
+              "unavailable_repositories": [
+                "constraints"
+              ],
+              "instances": [
+                "Block-1"
+              ],
+              "sets": [],
+              "surfaces": []
+            },
+            "Model-1": {
+              "parts": [],
+              "materials": [],
+              "steps": [
+                "Initial"
+              ],
+              "loads": [],
+              "boundary_conditions": [],
+              "interactions": [],
+              "constraints": [],
+              "unavailable_repositories": [
+                "constraints"
+              ],
+              "instances": [],
+              "sets": [],
+              "surfaces": []
+            }
+          },
+          "jobs": []
+        }
+      },
+      {
+        "name": "socket_odb_open",
+        "status": "passed",
+        "result": {
+          "handle": "odb_0001",
+          "path": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\axial_rod\\analysis.odb",
+          "read_only": true,
+          "steps": [
+            {
+              "name": "Load",
+              "procedure": "*STATIC",
+              "frames": [
+                {
+                  "index": 0,
+                  "time": 0.0,
+                  "fields": [
+                    "E",
+                    "RF",
+                    "S",
+                    "U"
+                  ]
+                },
+                {
+                  "index": 1,
+                  "time": 1.0,
+                  "fields": [
+                    "E",
+                    "RF",
+                    "S",
+                    "U"
+                  ]
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "PART-1-1"
+          ],
+          "node_count": 2,
+          "element_count": 1
+        }
+      },
+      {
+        "name": "socket_odb_summary",
+        "status": "passed",
+        "result": {
+          "handle": "odb_0001",
+          "path": "E:/WQG/Agent workspace/ABAQUS MCP/audit-artifacts/abaqus-2026-runs/20260928T135106Z_72c295df24c5/axial_rod/analysis.odb",
+          "steps": [
+            {
+              "name": "Load",
+              "procedure": "*STATIC",
+              "num_frames": 2,
+              "frames": [
+                {
+                  "index": 0,
+                  "time": 0.0,
+                  "fields": [
+                    "E",
+                    "RF",
+                    "S",
+                    "U"
+                  ]
+                },
+                {
+                  "index": 1,
+                  "time": 1.0,
+                  "fields": [
+                    "E",
+                    "RF",
+                    "S",
+                    "U"
+                  ]
+                }
+              ]
+            }
+          ],
+          "instances": [
+            {
+              "name": "PART-1-1",
+              "nodes": 2,
+              "elements": 1,
+              "element_types": [
+                "T3D2"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "socket_extract_S",
+        "status": "passed",
+        "result": {
+          "field": "S",
+          "step": 0,
+          "frame": 1,
+          "frame_time": 1.0,
+          "values": [
+            {
+              "node_label": null,
+              "element_label": 1,
+              "instance": "PART-1-1",
+              "data": [
+                100.0,
+                0.0,
+                0.0
+              ],
+              "mises": 100.000007629395
+            }
+          ],
+          "total_values": 1,
+          "truncated": false
+        }
+      },
+      {
+        "name": "socket_extract_U",
+        "status": "passed",
+        "result": {
+          "field": "U",
+          "step": 0,
+          "frame": 1,
+          "frame_time": 1.0,
+          "values": [
+            {
+              "node_label": 1,
+              "element_label": null,
+              "instance": "PART-1-1",
+              "data": [
+                1.00000002374223e-33,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "node_label": 2,
+              "element_label": null,
+              "instance": "PART-1-1",
+              "data": [
+                0.0476190485060215,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "total_values": 2,
+          "truncated": false
+        }
+      },
+      {
+        "name": "socket_odb_close",
+        "status": "passed",
+        "result": {
+          "closed": [
+            "odb_0001"
+          ]
+        }
+      },
+      {
+        "name": "socket_execute",
+        "status": "passed",
+        "result": {
+          "ok": true,
+          "return_value": 42,
+          "stdout": "",
+          "stderr": ""
+        }
+      }
+    ],
+    "status": "passed"
+  },
+  "http_export": {
+    "status": "passed",
+    "task_id": "37c9c625eece42ae8c2039bdf5cac2a7",
+    "output_url": "/exports/37c9c625eece42ae8c2039bdf5cac2a7/model.json",
+    "source_odb": "E:\\WQG\\Agent workspace\\ABAQUS MCP\\audit-artifacts\\abaqus-2026-runs\\20260928T135106Z_72c295df24c5\\frictionless_contact\\analysis.odb",
+    "nodes": 16,
+    "elements": 2,
+    "frames": 11,
+    "deduplication": "passed",
+    "last_vtu_bytes": 10468,
+    "browser_render": "not_tested_browser_unavailable"
+  },
+  "launcher_failure_recognized": true,
+  "software_tests": {
+    "passed": 379,
+    "failed": 0
+  },
+  "gui_plugin_installed": "C:\\Users\\SC10864\\abaqus_plugins\\abaqus_mcp_pro_gui_plugin.py",
+  "not_verified": [
+    "GUI menu activation and FOX event loop",
+    "Browser rendering of real ODB (browser unavailable this turn)",
+    "Abaqus 2024/2025",
+    "Large ODB performance and mesh convergence"
+  ],
+  "packaging": {
+    "sdist_and_wheel": "passed",
+    "isolated_install": "passed",
+    "stdio_roundtrip": "passed",
+    "tools": 135,
+    "prompts": 13,
+    "resources": 74,
+    "twine_check": "passed"
+  }
+}

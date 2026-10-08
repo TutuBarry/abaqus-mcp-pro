@@ -1,3 +1,4 @@
+import { finiteRange } from "./vtuparser.js";
 /**
  * UIController — manages DOM bindings, sidebar panels, toolbar, animation, toast.
  */
@@ -42,6 +43,32 @@ export class UIController {
   }
 
   /* ── Load Sample ── */
+  resetResult() {
+    this._displayedSelection = null;
+    this._frameBusy = false;
+    this._resultEpoch = (this._resultEpoch || 0) + 1;
+    this._renderEpoch = (this._renderEpoch || 0) + 1;
+    this.progress.hide();
+    if (this.state.playTimer) clearInterval(this.state.playTimer);
+    this.state.playTimer = null;
+    this.state.playing = false;
+    this.state.data = null;
+    this.state.currentField = null;
+    this.state.exportedJsonPath = null;
+    this.state.hiddenBodies = [];
+    this.state.contactOnly = false;
+    this._contourCustomMin = this._contourCustomMax = null;
+    this.viewer.clearResult();
+    this.measure.clear();
+    for (const id of ['info', 'legend', 'anim-bar', 'probe-info']) document.getElementById(id).classList.add('hidden');
+    document.getElementById('tree').replaceChildren();
+    document.getElementById('file-badge').textContent = '';
+    document.getElementById('btn-play').innerHTML = '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    const url = new URL(location.href);
+    for (const key of ['task', 'field', 'frame']) url.searchParams.delete(key);
+    history.replaceState(null, '', url.pathname + url.search);
+  }
+
   async loadSample(url) {
     try {
       this._updateStatus('加载示例模型...');
@@ -173,6 +200,7 @@ export class UIController {
 
   async _loadFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
+    this.resetResult();
     const jsonFiles = [];
     const vtuFiles = [];
     for (let i = 0; i < fileList.length; i++) {
@@ -233,6 +261,7 @@ export class UIController {
   }
 
   async _loadFile(file) {
+    this.resetResult();
     try {
       const text = await file.text();
       let data;
@@ -359,6 +388,7 @@ export class UIController {
       : '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
     if (this.state.playing) {
       this.state.playTimer = setInterval(() => {
+        if (this._frameBusy) return;
         const max = frames.length - 1;
         const mode = this.state.loopMode || 'loop';
         if (this.state.currentFrame >= max) {
@@ -378,7 +408,6 @@ export class UIController {
         if (this.state.currentFrame < 0) { this.state.currentFrame = 0; this.state._playDir = 1; }
         if (this.state.currentFrame > max) { this.state.currentFrame = 0; }
         this._rebuild();
-        this._updateAnimBar();
       }, 200);
     } else {
       if (this.state.playTimer) { clearInterval(this.state.playTimer); this.state.playTimer = null; }
@@ -390,7 +419,6 @@ export class UIController {
     if (frames.length === 0) return;
     this.state.currentFrame = Math.max(0, Math.min(idx, frames.length - 1));
     this._rebuild();
-    this._updateAnimBar();
   }
 
   /* ── Colormap picker enhancement (color preview) ── */
@@ -541,20 +569,49 @@ export class UIController {
 
   async _rebuild() {
     if (!this.state.data) return;
-    const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName, preserveCamera: true };
+    this._frameBusy = true;
+    const epoch = this._renderEpoch = (this._renderEpoch || 0) + 1;
+    this.progress.showDeferred('正在读取第 ' + (this.state.currentFrame + 1) + ' 帧，保留上一帧画面…');
+    const opts = { frameIdx: this.state.currentFrame, field: this.state.currentField, colormap: this.state.colormapName, preserveCamera: true,
+      hiddenBodies: this.state.hiddenBodies || [], contactOnly: this.state.contactOnly };
     if (this._contourCustomMin !== null) opts.fieldMin = this._contourCustomMin;
     if (this._contourCustomMax !== null) opts.fieldMax = this._contourCustomMax;
+    try {
     if (this.state.format === 'v3.0') {
       await this.viewer.buildSceneFromVTU(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     } else {
       this.viewer.buildScene(this.state.data, { ...opts, deformed: this.state.deformed, scaleFactor: this.state.scaleFactor });
     }
+    if (epoch !== this._renderEpoch) return;
     this._updateLegend();
     this._updateAnimBar();
+    this._updateTree(this.state.data);
+    this._displayedSelection = {currentFrame:this.state.currentFrame,currentField:this.state.currentField};
+    } catch (error) {
+      if (epoch !== this._renderEpoch) return;
+      if (this._displayedSelection) {
+        Object.assign(this.state, this._displayedSelection);
+        this._updateAnimBar();
+        this._updateTree(this.state.data);
+      }
+      this._updateStatus('结果显示失败: ' + error.message);
+      this._toast(error.message, 'error');
+    } finally {
+      if (epoch === this._renderEpoch) {
+        this._frameBusy = false;
+        this.progress.hide();
+      }
+    }
   }
 
   /* ── UI Updates ── */
   _updateAll(data) {
+    this._displayedSelection = {currentFrame:this.state.currentFrame,currentField:this.state.currentField};
+    document.getElementById('welcome').classList.add('hidden');
+    // A manually opened file must not retain a previous task's result link.
+    const url = new URL(location.href);
+    url.searchParams.delete('task');
+    history.replaceState(null, '', url.pathname + url.search);
     this._updateTree(data);
     this._updateLegend();
     this._updateAnimBar();
@@ -562,7 +619,6 @@ export class UIController {
 
     // Show overlays after data loaded
     document.getElementById('info').classList.remove('hidden');
-    document.getElementById('legend').classList.remove('hidden');
   }
 
   _updateInfo(data) {
@@ -597,13 +653,14 @@ export class UIController {
     const addItem = (icon, label, onClick, active) => {
       const el = document.createElement('div');
       el.className = 'tree-item' + (active ? ' active' : '');
-      el.innerHTML = '<span style="width:14px;text-align:center;flex-shrink:0;font-size:11px">' + icon + '</span><span>' + label + '</span>';
+      el.textContent = icon + ' ' + label;
       if (onClick) el.addEventListener('click', onClick);
       tree.appendChild(el);
       return el;
     };
 
     addSection('场变量');
+    for (const missing of data.missing_requested_fields || []) addItem('—', missing + '：ODB 未输出');
     const fields = data.fields || [];
     if (fields.length === 0) {
       addItem('—', '无场变量');
@@ -611,7 +668,7 @@ export class UIController {
     for (const f of fields) {
       const active =
         this.state.currentField &&
-        (this.state.currentField.key || this.state.currentField.name) === (f.key || f.name);
+        this.state.currentField.name === f.name;
       addItem('▣', f.label || f.name || f.key || '未知', () => {
         this.state.currentField = f;
         this._rebuild();
@@ -619,6 +676,21 @@ export class UIController {
     }
 
     addSection('模型');
+    for (const body of data.bodies || []) {
+      const hidden = (this.state.hiddenBodies || []).includes(body.id);
+      addItem(hidden ? '☐' : '☑', body.name, () => {
+        const hiddenSet = new Set(this.state.hiddenBodies || []);
+        if (hiddenSet.has(body.id)) hiddenSet.delete(body.id); else hiddenSet.add(body.id);
+        this.state.hiddenBodies = [...hiddenSet];
+        this._rebuild();
+      });
+    }
+    if (this.state.currentField?.association === 'contact') {
+      addItem(this.state.contactOnly ? '☑' : '☐', '仅显示有接触输出的表面', () => {
+        this.state.contactOnly = !this.state.contactOnly;
+        this._rebuild();
+      });
+    }
     const nodes = data.nodes || [];
     const elems = data.elements || {};
     const elemTypes = data.element_types || {};
@@ -665,18 +737,23 @@ export class UIController {
   }
 
   _updateLegend() {
+    const legend = document.getElementById('legend');
     const title = document.getElementById('legend-title');
     const bar = document.getElementById('legend-bar');
     const minL = document.getElementById('legend-min');
     const maxL = document.getElementById('legend-max');
+    const midL = document.getElementById('legend-mid');
+    const note = document.getElementById('legend-note');
 
     if (!this.state.currentField || !this.state.data) {
+      legend.classList.add('hidden');
       title.textContent = '未选择场变量';
       bar.style.background = 'var(--bg-elevated)';
       minL.textContent = '0';
       maxL.textContent = '0';
       return;
     }
+    legend.classList.remove('hidden');
 
     let fmin = 0, fmax = 1;
     // Use custom contour range if set
@@ -685,10 +762,16 @@ export class UIController {
     if ((this._contourCustomMin === null || this._contourCustomMax === null) && this.state.data) {
       const fieldKey = this.state.currentField.key || this.state.currentField.name;
       if (this.state.format === 'v3.0' && this.viewer._lastVtuResult && this.viewer._lastVtuResult.fieldValues) {
-        const valid = this.viewer._lastVtuResult.fieldValues.filter((v) => v != null && !isNaN(v));
-        if (valid.length > 0) {
-          if (this._contourCustomMin === null) fmin = Math.min(...valid);
-          if (this._contourCustomMax === null) fmax = Math.max(...valid);
+        const range = finiteRange(this.viewer._lastVtuResult.fieldValues);
+        if (range.count > 0) {
+          if (this._contourCustomMin === null) fmin = range.min;
+          if (this._contourCustomMax === null) fmax = range.max;
+        } else {
+          title.textContent = this.state.currentField.label || this.state.currentField.name;
+          bar.style.background = 'rgb(140,140,140)';
+          minL.textContent = midL.textContent = maxL.textContent = '—';
+          note.textContent = '当前帧无有效数据';
+          return;
         }
       } else if (this.state.data) {
         const frame = (this.state.data.frames || [])[this.state.currentFrame];
@@ -711,6 +794,12 @@ export class UIController {
     };
     minL.textContent = fmt(fmin);
     maxL.textContent = fmt(fmax);
+    midL.textContent = fmin === fmax ? '' : fmt((fmin + fmax) / 2);
+    note.textContent = (fmin === fmax ? '全场同值 · ' : '') + (unit || '单位随模型一致单位制');
+    if (fmin === fmax) {
+      const color = sampleColormap(this.state.colormapName, 0.5);
+      bar.style.background = 'rgb(' + color.map(v => Math.round(v * 255)).join(',') + ')';
+    }
   }
 
   _updateAnimBar() {

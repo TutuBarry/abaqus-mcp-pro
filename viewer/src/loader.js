@@ -24,10 +24,18 @@ export class ProgressLoader {
     this.hide();
   }
 
-  show(msg = 'Loading...') {
+  show(msg = 'Loading...', nonblocking = false) {
+    clearTimeout(this._timer);
+    this.container.classList.toggle('nonblocking', nonblocking);
+    this.container.classList.remove('hidden');
     this.text.textContent = msg;
     this.container.style.display = 'flex';
     this.bar.style.width = '0%';
+  }
+
+  showDeferred(msg, delay = 300) {
+    this.hide();
+    this._timer = setTimeout(() => this.show(msg, true), delay);
   }
 
   update(percent, msg) {
@@ -36,10 +44,14 @@ export class ProgressLoader {
   }
 
   hide() {
+    clearTimeout(this._timer);
+    this._timer = null;
+    this.container.classList.add('hidden');
     this.container.style.display = 'none';
   }
 
   dispose() {
+    this.hide();
     if (this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }

@@ -45,7 +45,9 @@ SKILLS = {
 
 def _collect_skill_files() -> list[tuple[str, str]]:
     """Walk skills/ directory and return (uri, file_path) tuples."""
-    skills_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))), 'skills')
+    skills_dir = _os.path.join(_os.path.dirname(__file__), 'data', 'skills')
+    if not _os.path.isdir(skills_dir):
+        skills_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))), 'skills')
     if not _os.path.isdir(skills_dir):
         return []
     result: list[tuple[str, str]] = []

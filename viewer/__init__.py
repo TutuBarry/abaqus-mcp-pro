@@ -1,0 +1,1 @@
+"""Local Abaqus result viewer."""
