@@ -45,6 +45,7 @@
       <div class="colormap-picker">
         <label class="cm-label">Colormap</label>
         <select id="colormap-select">
+          <option value="spectrum">Engineering Spectrum</option>
           <option value="jet">Jet</option>
           <option value="coolwarm">Cool-Warm</option>
           <option value="rainbow">Rainbow</option>
@@ -155,11 +156,12 @@
             </div>
             <div class="panel-body" id="panel-body-display">
               <div class="ctrl-group">
-                <button class="ctrl-btn" id="btn-wireframe" title="切换线框 (W)">
+                <button class="ctrl-btn active" id="btn-edges" title="显示外边界与特征边">轮廓边</button>
+                <button class="ctrl-btn" id="btn-wireframe" title="切换单元网格边线 (W)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-                  线框
+                  网格边
                 </button>
-                <button class="ctrl-btn" id="btn-deformed" title="切换变形 (D)">
+                <button class="ctrl-btn active" id="btn-deformed" title="切换变形 (D)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
                   变形
                 </button>
@@ -167,6 +169,10 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L22 8.5 L22 15.5 L12 22 L2 15.5 L2 8.5 Z"/><line x1="12" y1="22" x2="12" y2="15"/></svg>
                   剖切
                 </button>
+              </div>
+              <div class="p-gap">
+                <label class="panel-label" for="contour-bands">云图色带（VTU）</label>
+                <select id="contour-bands" class="p-input"><option value="12" selected>12 级色带</option><option value="24">24 级色带</option><option value="0">连续云图</option></select>
               </div>
               <div class="p-gap">
                 <div class="panel-label">变形比例</div>
@@ -197,6 +203,21 @@
                   <input type="range" id="anim-speed" min="1" max="20" step="1" value="5" style="flex:1">
                   <span id="anim-speed-val" class="mono-val">5x</span>
                 </div>
+              </div>
+              <div class="p-gap">
+                <label class="panel-label" for="rotate-sensitivity">旋转灵敏度</label>
+                <div class="p-row">
+                  <input type="range" id="rotate-sensitivity" min="0.5" max="20" step="0.5" value="6" style="flex:1">
+                  <span id="rotate-sensitivity-val" class="mono-val">6.0</span>
+                </div>
+              </div>
+              <div class="p-gap">
+                <label class="panel-label" for="zoom-sensitivity">滚轮 / 缩放灵敏度</label>
+                <div class="p-row">
+                  <input type="range" id="zoom-sensitivity" min="0.5" max="10" step="0.5" value="6" style="flex:1">
+                  <span id="zoom-sensitivity-val" class="mono-val">6.0</span>
+                </div>
+                <div class="panel-hint">向右更灵敏，自动记住本浏览器的设置。</div>
               </div>
             </div>
           </div>

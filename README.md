@@ -159,6 +159,10 @@ no intermediate JSON conversion, no cloud upload.
 
 ## Browser 3D Result Viewer
 
+**2026-10-13 VTU display update:** boundary/feature edges are visible by default. Optional mesh edges follow exterior element perimeters without quad triangulation diagonals; shared internal solid faces are removed. Per-fragment scalar mapping offers 12-band, 24-band and continuous contours with an Engineering Spectrum palette. Cinematic tone mapping and the background grid are disabled. Edges follow deformation, body filtering and clipping. High-order cells remain corner-linearized; extrapolation/averaging semantics are unchanged and this is not full Abaqus/CAE postprocessing parity.
+
+The agreed result-sharing direction is **ODB → lightweight export → local preflight → optional Miaoda publication → share link**. Keep local viewing available and reuse one viewer for local and hosted results. Generic preflight and cloud publication are planned work; the current per-result deployment is not yet a reusable MCP tool. See [implementation status and roadmap](docs/RESULT_SHARING_WORKFLOW.md).
+
 **1.1.0rc2 (2026-09-30, local release candidate)** defaults static results to the final frame and Mises, adds CPRESS/COPEN/CSHEAR/CSLIP with contact-pair identity, independent mesh-body visibility and contact-output surface filtering. Units are explicitly declared, never inferred. See [iteration evidence and remaining gates](docs/DELIVERY_2026-09-30.md).
 
 Successful `submit_job_no_gui(wait=True)` calls automatically export and return `viewer.url`; `submit_job(wait=True)` does the same when its ODB is locally accessible. After a nonblocking job completes, call `open_result_viewer(odb_path, unit_system)`. Use `view_result=False` to disable automatic export. Batch reference verification supports `abaqus-mcp-pro-verify --run --viewer`; solver acceptance and viewer status are recorded separately.
@@ -175,9 +179,11 @@ Enter an ODB path, click **Export from ODB**, and inspect results instantly:
 
 The ordinary startup URL opens an empty viewer without loading a sample or historical result. After export, `?task=<task ID>` in the address bar identifies that exact result and preserves it on refresh. To open the result in another browser, append the server's startup `#token=...` fragment. Missing or failed results show an error without falling back to a sample. The top bar shows the source ODB path.
 
-- **Orbit / pan / zoom** with OrbitControls
-- **Field coloring** - S, U, PEEQ, RF, E, SDV with jet colormap & legend
-- **Deformed shape** toggle with configurable scale factor
+- **Rotate / pan / zoom** with direct Trackball controls, no release inertia, synchronized pointer bounds on resize, and redraws only when the camera or display changes. Dragging does not trigger a probe click.
+- **Navigation sensitivity** - rotation and wheel/zoom sliders in Display Settings apply immediately and persist in this browser. Pointer and wheel samples are processed between render frames so fast input is retained.
+- **Field coloring** - S, U, PEEQ, RF, E, SDV with Engineering Spectrum by default and a matching legend
+- **Total displacement** - exporting U includes `U_magnitude` (U Magnitude), computed as `sqrt(U1² + U2² + U3²)` in the selected length unit. Re-export older results to add it; use U1/U2/U3 to inspect direction.
+- **Deformed shape** enabled by default, with configurable scale factor; feature edges are also enabled by default
 - **Animation** playback across all frames
 - **Wireframe overlay** toggle
 - **Probe/pick** - click any element to read field values

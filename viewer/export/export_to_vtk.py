@@ -233,7 +233,19 @@ def _read_nodal_field(frame_fo, node_map, num_nodes, ncomp):
     return vals
 
 
-def _read_elem_nodal_field(frame_fo, node_map, num_nodes, ncomp, invariants, section_point=None):
+def _tensor_component_labels(frame_fo, element_types):
+    """An ODB's top-level labels may describe only its first element type."""
+    labels = list(getattr(frame_fo, 'componentLabels', ()))
+    for element_type in element_types:
+        local = frame_fo.getSubset(elementType=element_type)
+        for label in getattr(local, 'componentLabels', ()):
+            if label not in labels:
+                labels.append(label)
+    return labels
+
+
+def _read_elem_nodal_field(frame_fo, node_map, num_nodes, ncomp, invariants, section_point=None,
+                           component_labels=None):
     from abaqusConstants import ELEMENT_NODAL
     subset = frame_fo.getSubset(position=ELEMENT_NODAL, readOnly=True)
     sums = [0.0] * (num_nodes * ncomp)
@@ -241,21 +253,42 @@ def _read_elem_nodal_field(frame_fo, node_map, num_nodes, ncomp, invariants, sec
     inv_sums = {inv: [0.0] * num_nodes for inv in invariants}
     inv_counts = {inv: [0] * num_nodes for inv in invariants}
     sections = set()
+    component_maps = {}
     for value in subset.values:
         key = _node_key(value)
         if key not in node_map:
             continue
         section = getattr(getattr(value, "sectionPoint", None), "number", 0)
-        if section_point is not None and section != section_point:
+        # Solid values have no section point and remain valid alongside shells.
+        if section_point is not None and section not in (0, section_point):
             continue
-        sections.add(section)
+        if section:
+            sections.add(section)
         if len(sections) > 1:
             raise ValueError("Multiple section points: select a section point before nodal averaging")
         ni = node_map[key]
         data = _field_data(value)
         row = [data] if isinstance(data, (int, float)) else list(data)
         if len(row) != ncomp:
-            raise ValueError("Unexpected tensor components; use actual componentLabels")
+            # A mixed ODB can expose six global stress labels while a shell
+            # instance has only S11/S22/S33/S12. Map actual subset labels;
+            # unavailable components stay missing instead of invented zeros.
+            map_key = (value.instance.name, len(row))
+            if map_key not in component_maps:
+                target = tuple(component_labels or getattr(frame_fo, 'componentLabels', ()))
+                local = frame_fo.getSubset(region=value.instance)
+                source = tuple(getattr(local, 'componentLabels', ()))
+                if len(source) != len(row):
+                    element = value.instance.getElementFromLabel(value.elementLabel)
+                    local = frame_fo.getSubset(region=element)
+                    source = tuple(getattr(local, 'componentLabels', ()))
+                if (len(target) != ncomp or len(source) != len(row)
+                        or len(set(source)) != len(source)
+                        or not set(source).issubset(target)):
+                    raise ValueError("Unexpected tensor components; use actual componentLabels")
+                component_maps[map_key] = [source.index(label) if label in source else None for label in target]
+            row = [row[index] if index is not None else float('nan')
+                   for index in component_maps[map_key]]
         for j, number in enumerate(row):
             sums[ni * ncomp + j] += float(number)
         counts[ni] += 1
@@ -593,6 +626,8 @@ def export_odb_to_vtk(
             fd = FIELD_DEFS[fname]
             fd_type, ncomp, comps, invariants = fd
             actual_labels = list(getattr(last_frame.fieldOutputs[source_name], "componentLabels", ()))
+            if fd_type == 'elem_nodal' and actual_labels:
+                actual_labels = _tensor_component_labels(last_frame.fieldOutputs[source_name], elem_type_info)
             if actual_labels:
                 comps = actual_labels
                 ncomp = len(comps)
@@ -604,6 +639,10 @@ def export_odb_to_vtk(
             valid = {str(v).replace("_", "").lower() for v in
                      getattr(last_frame.fieldOutputs[source_name], "validInvariants", ())}
             invariants = [inv for inv in invariants if inv.lower() in valid]
+            # Total displacement is derived from the exported nodal vector.
+            # Some ODBs do not advertise MAGNITUDE in validInvariants.
+            if fname == 'U':
+                invariants.append('magnitude')
             finfo = {
                 "fd_type": fd_type,
                 "ncomp": ncomp,
@@ -632,7 +671,8 @@ def export_odb_to_vtk(
                     "key": fname,
                     "component_index": -1,
                     "ncomp": 1,
-                    "label": "%s (%s)" % (finfo["label"], inv),
+                    "label": ("总位移 (U Magnitude)" if fname == 'U' and inv == 'magnitude'
+                              else "%s (%s)" % (finfo["label"], inv)),
                     "unit": _field_unit(fname, unit_system),
                 })
             print("[VTK Export] Field '%s': type=%s, %d comp(s), "
@@ -659,9 +699,14 @@ def export_odb_to_vtk(
                 if fd_type == "nodal":
                     vals = _read_nodal_field(fo, node_map, num_nodes, ncomp)
                     point_data[fname] = vals
+                    if 'magnitude' in invariants:
+                        point_data[fname + '_magnitude'] = [
+                            math.hypot(*vals[i:i + ncomp])
+                            for i in range(0, len(vals), ncomp)
+                        ]
                 else:
                     result = _read_elem_nodal_field(
-                        fo, node_map, num_nodes, ncomp, invariants, section_point)
+                        fo, node_map, num_nodes, ncomp, invariants, section_point, finfo['comps'])
                     point_data[fname] = result["data"]
                     for inv, inv_vals in result["invariants"].items():
                         point_data["%s_%s" % (fname, inv)] = inv_vals

@@ -1,4 +1,6 @@
+import {createContourMaterial, configureContour, contourCoordinates, featureEdges} from './contours.js';
 import { FrameCache } from './framecache.js';
+import { guardDragClicks, sampleControlInputs } from './gestures.js';
 import { finiteRange } from "./vtuparser.js";
 /**
  * Viewer3D — Three.js scene management for FEM results.
@@ -36,10 +38,15 @@ export class Viewer3D {
     this.gridHelper = null;
     this.meshGroup = new THREE.Group();
     this.wireframeGroup = new THREE.Group();
+    this.edgeGroup = new THREE.Group();
+    this._edgesVisible = true;
+    this.contourBands = 12;
     this.clipGroup = new THREE.Group(); // for clipping plane visualization
     this.clipPlane = null;
     this.animFrameId = null;
     this._disposed = false;
+    this._needsRender = true;
+    this._axisPoint = new THREE.Vector3();
     this._fileCache = null;  // Map<filename, text> for uploaded VTU files
     this.labelRenderer = null;
     this.axisScene = null;
@@ -75,14 +82,16 @@ export class Viewer3D {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
+      powerPreference: 'high-performance',
     });
     this.renderer.setSize(w, h);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = false;
     this.renderer.localClippingEnabled = true;
     this.container.appendChild(this.renderer.domElement);
-    // Prevent native canvas drag (interferes with OrbitControls rotation)
+    // Prevent native canvas drag from interfering with camera manipulation.
     this.renderer.domElement.addEventListener('dragstart', (e) => e.preventDefault());
+    this._removeDragClickGuard = guardDragClicks(this.renderer.domElement);
 
     // CSS2D label renderer for axis labels, probe tooltips
     this.labelRenderer = new CSS2DRenderer();
@@ -116,13 +125,17 @@ export class Viewer3D {
     this.controls.noRotate = false;
     this.controls.noZoom = false;
     this.controls.noPan = false;
-    this.controls.staticMoving = false;
-    this.controls.dynamicDampingFactor = 0.08;
-    this.controls.rotateSpeed = 1.2;
-    this.controls.zoomSpeed = 1.2;
+    // Direct CAD-style manipulation: do not keep rotating after pointer release.
+    this.controls.staticMoving = true;
+    this.controls.rotateSpeed = 6.0;
+    this.controls.zoomSpeed = 6.0;
+    this._removeControlSampling = sampleControlInputs(this.renderer.domElement, this.controls);
+    this.controls.addEventListener('change', () => this.requestRender());
+    this.controls.addEventListener('start', () => this.controls.handleResize());
 
     // Grid
     this.gridHelper = new THREE.GridHelper(5, 20, 0x444466, 0x333355);
+    this.gridHelper.visible = false;
     this.scene.add(this.gridHelper);
 
     // Lighting (PBR-optimized)
@@ -145,16 +158,21 @@ export class Viewer3D {
     this.scene.add(d3);
 
     // Tone mapping for cinematic look
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMappingExposure = 1.2;
     // Environment map for PBR reflections
     this._generateEnvMap();
 
     this.scene.add(this.meshGroup);
     this.scene.add(this.wireframeGroup);
+    this.scene.add(this.edgeGroup);
 
     // Resize handler
-    window.addEventListener('resize', () => this._onResize());
+    this._resizeHandler = () => this._onResize();
+    window.addEventListener('resize', this._resizeHandler);
+    this._resizeObserver = new ResizeObserver(this._resizeHandler);
+    this._resizeObserver.observe(this.container);
 
     // Start loop
     this._animate();
@@ -279,6 +297,11 @@ export class Viewer3D {
   dispose() {
     this._disposed = true;
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+    this.controls?.dispose();
+    this._removeDragClickGuard?.();
+    this._removeControlSampling?.();
+    this._resizeObserver?.disconnect();
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
    if (this.renderer) {
      this.renderer.dispose();
      if (this.renderer.domElement.parentNode) {
@@ -322,7 +345,7 @@ export class Viewer3D {
 
   clearResult() {
     this._loadVersion = (this._loadVersion || 0) + 1;
-    for (const group of [this.meshGroup, this.wireframeGroup, this._lineGroup]) {
+    for (const group of [this.meshGroup, this.wireframeGroup, this.edgeGroup, this._lineGroup]) {
       if (group) this._disposeGroup(group);
     }
     this._lastVtuResult = null;
@@ -330,9 +353,11 @@ export class Viewer3D {
     this._parsedFrames?.clear();
     this._prefetchEpoch = (this._prefetchEpoch || 0) + 1;
     this.lastTimings = null;
+    this.requestRender();
   }
 
   buildScene(data, options = {}) {
+    this.requestRender();
     const {
       frameIdx = 0,
       field = null,
@@ -345,6 +370,7 @@ export class Viewer3D {
 
     this._disposeGroup(this.meshGroup);
     this._disposeGroup(this.wireframeGroup);
+    this._disposeGroup(this.edgeGroup);
 
     const nodes = data.nodes || [];
     const elements = data.elements || {};
@@ -688,7 +714,8 @@ export class Viewer3D {
     const nNodes = positions.length / 3;
     let hasGeom = false;
     const outPos = positions;
-    const outColors = fieldVals ? new Float32Array(nNodes * 3) : null;
+    const outColors = fieldVals && lines.length ? new Float32Array(nNodes * 3) : null;
+    const lineColor = new THREE.Color();
     let boundsMin = null, boundsMax = null;
     for (let i = 0; i < nNodes; i++) {
       const x = positions[i * 3];
@@ -704,19 +731,21 @@ export class Viewer3D {
         if (y > boundsMax[1]) boundsMax[1] = y;
         if (z > boundsMax[2]) boundsMax[2] = z;
       }
-      if (fieldVals) {
+      if (outColors) {
         const v = (i < fieldVals.length && fieldVals[i] != null) ? fieldVals[i] : NaN;
         const t = !Number.isFinite(v) ? NaN : fieldMax > fieldMin ? (v - fieldMin) / (fieldMax - fieldMin) : 0.5;
-        const col = sampleColormap(colormap, t);
-        outColors.set(col, i * 3);
+        const col = lineColor.setRGB(...sampleColormap(colormap, t), THREE.SRGBColorSpace);
+        outColors.set([col.r,col.g,col.b], i * 3);
       }
     }
+    const contour = contourCoordinates(fieldVals,nNodes,fieldMin,fieldMax);
     // --- Mesh (surface/volume) ---
     if (indices.length > 0) {
       const existing = this.meshGroup.children[0];
       const oldIndex = existing?.geometry.index?.array;
       const reusable = existing && existing.geometry.attributes.position.count === nNodes &&
         oldIndex?.length === indices.length && oldIndex.every((v, i) => v === indices[i]);
+      const positionsChanged = !reusable || !existing.geometry.attributes.position.array.every((v,i)=>v===outPos[i]);
       const update = geom => {
         if (geom.attributes.position?.array.length === outPos.length) {
           geom.attributes.position.array.set(outPos);
@@ -728,15 +757,15 @@ export class Viewer3D {
             geom.attributes.color.needsUpdate = true;
           } else geom.setAttribute('color', new THREE.Float32BufferAttribute(outColors, 3));
         } else geom.deleteAttribute('color');
+        if (geom.attributes.contour?.array.length === contour.length) {
+          geom.attributes.contour.array.set(contour); geom.attributes.contour.needsUpdate=true;
+        } else geom.setAttribute('contour',new THREE.BufferAttribute(contour,2));
         geom.computeBoundingBox();
         geom.computeBoundingSphere();
       };
       if (reusable) {
         update(existing.geometry);
-        update(this.wireframeGroup.children[0].geometry);
-        existing.material.vertexColors = !!outColors;
-        existing.material.color.set(outColors ? 0xffffff : 0x58a6ff);
-        existing.material.needsUpdate = true;
+
         timings.reusedGeometry = true;
       } else {
         this._disposeGroup(this.meshGroup);
@@ -744,22 +773,37 @@ export class Viewer3D {
         const geom = new THREE.BufferGeometry();
         update(geom);
         geom.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
-        const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
-          vertexColors: !!outColors, color: outColors ? 0xffffff : 0x58a6ff, side: THREE.DoubleSide,
-        }));
+        const mesh = new THREE.Mesh(geom, createContourMaterial());
         this.meshGroup.add(mesh);
-        const wf = new THREE.Mesh(geom.clone(), new THREE.MeshBasicMaterial({
-          color: 0x8b949e, wireframe: true, transparent: true, opacity: 0.35,
-        }));
-        wf.visible = false;
-        this.wireframeGroup.add(wf);
       }
+      const mesh=this.meshGroup.children[0];
+      configureContour(mesh.material,!!fieldVals,colormap,fieldMax>fieldMin ? this.contourBands : 0);
+      // Only visible surface element perimeters; no triangulation diagonals.
+      if (!reusable || !this.wireframeGroup.children.length) {
+      const visibleEdges=new Set();
+      for(let i=0;i<indices.length;i+=3) for(let j=0;j<3;j++) {
+        const a=indices[i+j], b=indices[i+(j+1)%3];
+        visibleEdges.add(a<b?`${a},${b}`:`${b},${a}`);
+      }
+      const meshEdges=[];
+      if(vtuResult.meshEdges) {
+        for(let i=0;i<vtuResult.meshEdges.length;i+=2) {
+          const a=vtuResult.meshEdges[i],b=vtuResult.meshEdges[i+1];
+          if(visibleEdges.has(a<b?`${a},${b}`:`${b},${a}`)) meshEdges.push(a,b);
+        }
+      } else for(const edge of visibleEdges) meshEdges.push(...edge.split(',').map(Number));
+      this._updateEdges(this.wireframeGroup, mesh.geometry.attributes.position, meshEdges, 0x142536, .45);
+      } else this.wireframeGroup.children[0].geometry.computeBoundingSphere();
+      if (positionsChanged || !this.edgeGroup.children.length)
+      this._updateEdges(this.edgeGroup, mesh.geometry.attributes.position, featureEdges(outPos,indices), 0x07101a, .9);
+      this.edgeGroup.visible=this._edgesVisible;
       hasGeom = true;
     }
 
     if (!indices.length) {
       this._disposeGroup(this.meshGroup);
       this._disposeGroup(this.wireframeGroup);
+      this._disposeGroup(this.edgeGroup);
     }
     // --- Lines (beams/trusses) ---
     if (lines.length > 0) {
@@ -797,6 +841,7 @@ export class Viewer3D {
     if (boundsMin) allBounds.set(new THREE.Vector3(...boundsMin), new THREE.Vector3(...boundsMax));
     this._applyClipping();
     this.setWireframe(this._wireframeVisible || false);
+    this.setOpacity(this._opacity ?? 1);
     this.lastBuildMs = performance.now() - started;
     this.lastTimings = {...timings, totalMs: this.lastBuildMs,
       sceneMs: Math.max(0, this.lastBuildMs - timings.acquireMs),
@@ -806,6 +851,7 @@ export class Viewer3D {
       setTimeout(() => { if (epoch === this._prefetchEpoch && loadVersion === this._loadVersion) prefetch(); }, 100);
     }
     if (!preserveCamera) this._fitCamera(allBounds);
+    this.requestRender();
     return { bounds: allBounds };
   }  getVtuStats() {
     if (!this._lastVtuResult) return { nodes: 0, elements: 0 };
@@ -834,6 +880,7 @@ export class Viewer3D {
     }
     const gridSize = Math.pow(10, Math.ceil(Math.log10(s * 0.7)));
     this.gridHelper = new THREE.GridHelper(gridSize, 20, 0x444466, 0x333355);
+    this.gridHelper.visible = false;
     this.scene.add(this.gridHelper);
   }
 
@@ -883,16 +930,11 @@ export class Viewer3D {
     }
     this.clipPlane.constant = this._clippingPosition;
     const enabled = this._clippingEnabled;
-    if (enabled) {
-      this.meshGroup.children.forEach(c => {
-        if (c.isMesh) c.material.clippingPlanes = [this.clipPlane];
-      });
-    } else {
-      this.meshGroup.children.forEach(c => {
-        if (c.isMesh) c.material.clippingPlanes = [];
-      });
+    for (const group of [this.meshGroup,this.wireframeGroup,this.edgeGroup,this._lineGroup]) {
+      group?.children.forEach(c => {if(c.material) c.material.clippingPlanes=enabled?[this.clipPlane]:[];});
     }
     this.renderer.localClippingEnabled = true;
+    this.requestRender();
   }
 
   isClippingEnabled() {
@@ -906,6 +948,8 @@ export class Viewer3D {
   // ── Opacity ──
 
   setOpacity(opacity) {
+    this._opacity = opacity;
+    this.requestRender();
     this.meshGroup.children.forEach(c => {
       if (c.isMesh) {
         c.material.transparent = opacity < 1;
@@ -913,18 +957,31 @@ export class Viewer3D {
         c.material.needsUpdate = true;
       }
     });
-    this.wireframeGroup.children.forEach(c => {
-      if (c.isMesh) {
-        c.material.transparent = opacity < 1;
-        c.material.opacity = opacity;
-        c.material.needsUpdate = true;
-      }
+    for(const group of [this.wireframeGroup,this.edgeGroup]) group.children.forEach(c=>{
+      c.material.opacity=(group === this.edgeGroup ? .9 : .45)*opacity;
     });
   }
 
-    // ── Playback ──
+  _updateEdges(group, position, indices, color, opacity) {
+    let line=group.children[0];
+    if(!line) {
+      line=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({
+        color, transparent:true, opacity, depthWrite:false, toneMapped:false}));
+      group.add(line);
+    }
+    line.geometry.setAttribute('position',position);
+    const old=line.geometry.index;
+    if(!old || old.count!==indices.length || !old.array.every((v,i)=>v===indices[i]))
+      line.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices),1));
+    line.geometry.computeBoundingSphere();
+  }
+
+  setFeatureEdges(visible) {
+    this._edgesVisible=visible; this.edgeGroup.visible=visible; this.requestRender();
+  }
 
   setWireframe(visible) {
+    this.requestRender();
     this._wireframeVisible = visible;
     this.wireframeGroup.children.forEach(c => { c.visible = visible; });
   }
@@ -947,6 +1004,7 @@ export class Viewer3D {
     const rect = this.container.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
+    if (w <= 0 || h <= 0) return;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
    this.renderer.setSize(w, h);
@@ -954,19 +1012,26 @@ export class Viewer3D {
     if (this.axisRenderer) {
       this.axisRenderer.setSize(170, 170);
     }
+    this.controls?.handleResize();
+    this.requestRender();
+  }
+
+  requestRender() {
+    this._needsRender = true;
   }
 
   _animate() {
     if (this._disposed) return;
     this.animFrameId = requestAnimationFrame(() => this._animate());
     this.controls.update();
+    // Keep sampling controls, but leave both WebGL contexts idle when unchanged.
+    if (!this._needsRender) return;
+    this._needsRender = false;
     this.renderer.render(this.scene, this.camera);
 
    // Render axis indicator (top-right corner)
    if (this.axisGroup && this.axisCamera) {
      this.axisGroup.quaternion.copy(this.camera.quaternion);
-      this.axisCamera.aspect = 1;
-      this.axisCamera.updateProjectionMatrix();
       this.axisRenderer.render(this.axisScene, this.axisCamera);
 
       // Update HTML label positions via 3D-to-screen projection
@@ -975,7 +1040,7 @@ export class Viewer3D {
         const len = 1.6;
         const offset = 0.3;
         for (let i = 0; i < 3; i++) {
-          const p = new THREE.Vector3(
+          const p = this._axisPoint.set(
             this._axisDirs[i][0] * (len + offset),
             this._axisDirs[i][1] * (len + offset),
             this._axisDirs[i][2] * (len + offset)

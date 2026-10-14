@@ -38,6 +38,7 @@ export class MeasureTool {
   }
 
   clear() {
+    this.viewer.requestRender();
     this.points = [];
     this.markers.forEach(m => { this.viewer.scene.remove(m); });
     this.lines.forEach(l => { this.viewer.scene.remove(l); });
@@ -53,6 +54,7 @@ export class MeasureTool {
 
   _onClick(e) {
     if (!this.enabled) return;
+    this.viewer.requestRender();
     const rect = this.viewer.renderer.domElement.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;

@@ -16,6 +16,8 @@ Kernel access is serialized, including reads. `run_python` returns an operation_
 
 ## Viewer
 
+Planned sharing workflow: ODB → lightweight export → local preflight → optional Miaoda publication → share link. Generic preflight and cloud publication are not registered MCP capabilities yet. See [current implementation and planned work](RESULT_SHARING_WORKFLOW.md); deployment status, external access, and data-link expiry must be reported separately.
+
 Use `abaqus-mcp-pro-viewer` after wheel installation, or `python viewer/serve_viewer.py` from a built source checkout. Open the URL printed at startup; its token is exchanged for an HttpOnly SameSite cookie and removed from the URL fragment. HTTP is intended for local use.
 
 Environment controls: `ABAQUS_VIEWER_HOST` (127.0.0.1), `ABAQUS_VIEWER_PORT` (8080), `ABAQUS_VIEWER_TOKEN`, `ABAQUS_VIEWER_ODB_ROOT` (optional input boundary), `ABAQUS_VIEWER_EXPORT_ROOT` (default ~/.abaqus-mcp-pro/exports), and `ABAQUS_COMMAND` (executable/batch path). Output files persist for inspection; remove obsolete runs manually only after checking whether they are still needed.

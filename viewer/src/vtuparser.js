@@ -93,6 +93,7 @@ export function parseVTU(text, options = {}) {
   const indices = [];
   const lines = [];
   const cells = [];
+  const solidFaces = new Map(), surfaceFaces = [];
   let cursor = 0;
   for (let i = 0; i < offsets.length; i++) {
     const end = offsets[i];
@@ -106,11 +107,29 @@ export function parseVTU(text, options = {}) {
       throw new Error('Invalid cell connectivity');
     }
     if (retainCells) cells.push(cell);
-    triangulateCell(cell, cellType, indices, lines);
+    triangulateCell(cell, cellType, indices, lines, (face, solid) => {
+      if (!solid) { surfaceFaces.push(face); return; }
+      const key = [...face].sort((a,b)=>a-b).join(',');
+      const previous = solidFaces.get(key);
+      if (previous) previous.count++;
+      else solidFaces.set(key, {face,count:1});
+    });
     cursor = end;
   }
 
-  return selectVTUField({positions: new Float32Array(positions), indices: new Uint32Array(indices),
+  for (const {face,count} of solidFaces.values()) if (count === 1) surfaceFaces.push(face);
+  const edgeMap = new Map();
+  for (const face of surfaceFaces) {
+    for (let j=1;j<face.length-1;j++) indices.push(face[0],face[j],face[j+1]);
+    for (let j=0;j<face.length;j++) {
+      const a=face[j],b=face[(j+1)%face.length];
+      edgeMap.set(a<b?`${a},${b}`:`${b},${a}`,[a,b]);
+    }
+  }
+  const meshEdges = new Uint32Array(edgeMap.size*2);
+  let edgeOffset=0;
+  for (const edge of edgeMap.values()) {meshEdges.set(edge,edgeOffset);edgeOffset+=2;}
+  return selectVTUField({positions: new Float32Array(positions), indices: new Uint32Array(indices), meshEdges,
     lines: new Uint32Array(lines), cells: retainCells ? cells : null, cellCount: offsets.length,
     cellTypes: new Uint8Array(cellTypes), vectorFields, pointFields}, fieldName, componentIndex);
 }
@@ -156,7 +175,7 @@ export function filterSurfaceIndices(indices, bodyIds, hiddenBodies, fieldValues
 }
 
 // High-order cells are explicitly linearized using their corner nodes.
-export function triangulateCell(cell, cellType, indices, lines) {
+export function triangulateCell(cell, cellType, indices, lines, collectFace = null) {
   const required = {1:1, 3:2, 21:3, 5:3, 22:6, 9:4, 23:8, 28:9,
                     10:4, 24:10, 12:8, 25:20, 13:6, 26:15, 14:5};
   if (!required[cellType] || cell.length !== required[cellType]) {
@@ -175,6 +194,7 @@ export function triangulateCell(cell, cellType, indices, lines) {
   else if ([13,26].includes(cellType)) faces = [[0,2,1],[3,4,5],[0,1,4,3],[1,2,5,4],[2,0,3,5]];
   else faces = [[0,3,2,1],[0,1,4],[1,2,4],[2,3,4],[3,0,4]];
   for (const face of faces) {
+    if (collectFace) {collectFace(face.map(i=>cell[i]), ![5,22,9,23,28].includes(cellType)); continue;}
     for (let j = 1; j < face.length - 1; j++) indices.push(cell[face[0]], cell[face[j]], cell[face[j+1]]);
   }
 }

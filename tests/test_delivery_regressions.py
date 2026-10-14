@@ -47,7 +47,7 @@ def make_odb():
             self.componentLabels = labels
             self.validInvariants = ('MISES',) if len(labels) == 6 else ()
 
-        def getSubset(self, *, region=None, position=None, readOnly=True):
+        def getSubset(self, *, region=None, position=None, readOnly=True, elementType=None):
             if isinstance(region, str):
                 raise TypeError('Expected OdbSet')
             return self
@@ -87,7 +87,7 @@ def test_export_real_odb_shapes_and_instance_values(tmp_path, constants):
     odb = make_odb()
     path = exporter.export_odb_to_vtk('fixture.odb', str(tmp_path), fields=['U', 'S'],
                                       deformation_scale=0, _odb_handle=odb)
-    model = json.loads(Path(path).read_text())
+    model = json.loads(Path(path).read_text(encoding='utf-8'))
     assert model['num_nodes'] == 8
     assert model['num_elements'] == 2
     root = ET.parse(tmp_path / 'frame_0000.vtu')
@@ -102,6 +102,31 @@ def test_export_real_odb_shapes_and_instance_values(tmp_path, constants):
 def test_missing_value_is_not_zero():
     field = NS(values=[])
     assert math.isnan(exporter._read_nodal_field(field, {('ONE', 1): 0}, 1, 1)[0])
+
+
+@pytest.mark.parametrize('components', [2, 3])
+def test_total_displacement_export_preserves_missing_frames(tmp_path, constants, components):
+    odb = make_odb()
+    step = odb.steps['Load']
+    field = step.frames[0].fieldOutputs['U']
+    field.componentLabels = ('U1', 'U2', 'U3')[:components]
+    for value in field.values:
+        value.data = (-3., 4., -12.)[:components]
+    step.frames.insert(0, NS(frameValue=0., frameId=0, fieldOutputs={}))
+    path = exporter.export_odb_to_vtk('fixture.odb', str(tmp_path), fields=['U'],
+                                     unit_system='N-mm-s-tonne', _odb_handle=odb)
+    model = json.loads(Path(path).read_text(encoding='utf-8'))
+    magnitude = next(f for f in model['fields'] if f['name'] == 'U_magnitude')
+    assert magnitude['unit'] == 'mm'
+    assert magnitude['component_index'] == -1
+    assert magnitude['ncomp'] == 1
+    assert 'U Magnitude' in magnitude['label']
+    root = ET.parse(tmp_path / 'frame_0001.vtu')
+    values = list(map(float, root.find('.//PointData/DataArray[@Name="U_magnitude"]').text.split()))
+    assert values == [5. if components == 2 else 13.] * 8
+    missing = ET.parse(tmp_path / 'frame_0000.vtu')
+    values = list(map(float, missing.find('.//PointData/DataArray[@Name="U_magnitude"]').text.split()))
+    assert len(values) == 8 and all(math.isnan(value) for value in values)
 
 
 def test_kpi_api_and_invalid_selections(constants):
@@ -244,6 +269,48 @@ def test_section_point_selection_and_missing_data(constants):
         exporter._read_elem_nodal_field(field, {('ONE', 1): 0}, 1, 1, [])
     selected = exporter._read_elem_nodal_field(field, {('ONE', 1): 0}, 1, 1, [], 2)
     assert selected['data'] == [90]
+
+
+def test_mixed_shell_solid_stress_keeps_solids_and_maps_subset_labels(constants):
+    solid, shell = NS(name='SOLID'), NS(name='SHELL')
+    values = [NS(instance=solid, nodeLabel=1, data=(1, 2, 3, 4, 5, 6), sectionPoint=None, mises=8),
+              NS(instance=shell, nodeLabel=1, data=(40, 10, 20, 30), sectionPoint=NS(number=5), mises=80),
+              NS(instance=shell, nodeLabel=1, data=(400, 100, 200, 300), sectionPoint=NS(number=1), mises=800)]
+    def subset(**kwargs):
+        if 'region' in kwargs:
+            return NS(componentLabels=('S12', 'S11', 'S22', 'S33'))
+        return NS(values=values)
+    field = NS(componentLabels=('S11', 'S22', 'S33', 'S12', 'S13', 'S23'), getSubset=subset)
+    actual = exporter._read_elem_nodal_field(field, {('SOLID', 1): 0, ('SHELL', 1): 1}, 2, 6, ['mises'], 5)
+    assert actual['data'][:10] == [1, 2, 3, 4, 5, 6, 10, 20, 30, 40]
+    assert all(math.isnan(v) for v in actual['data'][10:])
+    assert actual['invariants']['mises'] == [8, 80]
+    with pytest.raises(ValueError, match='Multiple section points'):
+        exporter._read_elem_nodal_field(field, {('SOLID', 1): 0, ('SHELL', 1): 1}, 2, 6, ['mises'])
+
+
+def test_mixed_elements_in_one_instance_expand_global_tensor_labels(constants):
+    instance = NS(name='MIXED')
+    shell_labels = ('S11', 'S22', 'S33', 'S12')
+    solid_labels = shell_labels + ('S13', 'S23')
+    values = [NS(instance=instance, nodeLabel=1, data=(10, 20, 30, 40), sectionPoint=NS(number=5), mises=50),
+              NS(instance=instance, nodeLabel=2, data=(1, 2, 3, 4, 5, 6), sectionPoint=None, mises=7),
+              NS(instance=instance, nodeLabel=1, data=(90, 90, 90, 90), sectionPoint=NS(number=1), mises=99)]
+    def subset(**kwargs):
+        if 'elementType' in kwargs:
+            return NS(componentLabels=solid_labels if kwargs['elementType'] == 'C3D4' else shell_labels)
+        if 'region' in kwargs:
+            return NS(componentLabels=shell_labels)
+        return NS(values=values)
+    field = NS(componentLabels=shell_labels, getSubset=subset)
+    labels = exporter._tensor_component_labels(field, ['S4', 'S3R', 'C3D4'])
+    assert labels == list(solid_labels)
+    result = exporter._read_elem_nodal_field(field, {('MIXED', 1): 0, ('MIXED', 2): 1},
+                                            2, len(labels), ['mises'], 5, labels)
+    assert result['data'][:4] == [10, 20, 30, 40]
+    assert all(math.isnan(v) for v in result['data'][4:6])
+    assert result['data'][6:] == [1, 2, 3, 4, 5, 6]
+    assert result['invariants']['mises'] == [50, 7]
 
 
 def test_submit_job_default_is_nonblocking_and_abort_is_error(monkeypatch):

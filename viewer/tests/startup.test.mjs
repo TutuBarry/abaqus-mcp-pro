@@ -25,7 +25,7 @@ function setup(t, search = '') {
     location: {search, hash: '', pathname: '/', href: 'http://localhost:8087/' + search},
     history: {replaceState(_state, _title, url) { this.url = url; }},
     document: {getElementById(key) {
-      if (!elements.has(key)) elements.set(key, {value: '', textContent: '', classList: {add() {}, remove() {}}});
+      if (!elements.has(key)) elements.set(key, {value: '', textContent: '', classList: {add() {}, remove() {}, toggle() {}}});
       return elements.get(key);
     }},
   })) {
@@ -84,3 +84,22 @@ test('successful export updates URL so refresh selects that same result', async 
   assert.equal(history.url, '/?task=' + id);
   assert.equal(client.state.exportTaskId, id);
 });
+
+for (const procedure of ['*DYNAMIC, EXPLICIT', 'DYNAMIC', 'STATIC']) {
+  test(`${procedure} initial VTU load uses consistent physical displacement settings`, async t => {
+    const {client, elements} = setup(t);
+    const data = {format_version:'3.0', frames:[{}], fields:[{name:'S_mises'}], steps:[{procedure}]};
+    fetch.mock.mockImplementation(async () => ({ok:true, json:async () => data}));
+    client.state.deformed = true;
+    client.state.scaleFactor = 50;
+    let options;
+    client.viewer.buildSceneFromVTU = async (_data, opts) => { options=opts; };
+    await ODBExportClient.prototype._loadExportedJson.call(client, result.output_url, '?frame=0');
+    assert.equal(options.deformed, procedure !== 'STATIC');
+    assert.equal(client.state.deformed, options.deformed);
+    assert.equal(options.scaleFactor, 1);
+    assert.equal(client.state.scaleFactor, 1);
+    assert.equal(elements.get('deform-scale').value, '1');
+    assert.equal(elements.get('deform-scale-val').textContent, '1.0');
+  });
+}

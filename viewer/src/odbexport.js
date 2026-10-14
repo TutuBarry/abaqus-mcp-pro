@@ -232,7 +232,17 @@ export class ODBExportClient {
       const selection = resultSelection(data, search);
       this.state.currentFrame = selection.frameIdx;
       this.state.currentField = selection.field;
-      const opts = { ...selection, colormap: this.state.colormapName };
+      // Transient playback must move the mesh, not only change its colours.
+      // Always start new results at physical scale to preserve contact geometry.
+      this.state.deformed = (data.steps || []).some(s => /DYNAMIC|EXPLICIT/i.test(s.procedure || ''));
+      this.state.scaleFactor = 1.0;
+      document.getElementById('btn-deformed')?.classList.toggle('active', this.state.deformed);
+      const scaleSlider = document.getElementById('deform-scale');
+      const scaleLabel = document.getElementById('deform-scale-val');
+      if (scaleSlider) scaleSlider.value = '1';
+      if (scaleLabel) scaleLabel.textContent = '1.0';
+      const opts = { ...selection, colormap: this.state.colormapName,
+        deformed: this.state.deformed, scaleFactor: this.state.scaleFactor };
       if (this.state.format === 'v3.0') {
         await this.viewer.buildSceneFromVTU(data, opts);
       } else {

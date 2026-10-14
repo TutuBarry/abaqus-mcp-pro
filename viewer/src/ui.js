@@ -1,3 +1,4 @@
+import {bandedColormapCSS} from './contours.js';
 import { finiteRange } from "./vtuparser.js";
 /**
  * UIController — manages DOM bindings, sidebar panels, toolbar, animation, toast.
@@ -38,6 +39,7 @@ export class UIController {
     this._bindLoopMode();
     this._bindContourRange();
     this._bindAnimSpeed();
+    this._bindNavigationSensitivity();
     this._bindClippingPosition();
     this._enhanceColormapPicker();
   }
@@ -311,6 +313,13 @@ export class UIController {
 
   /* ── Display controls ── */
   _bindDisplay() {
+    document.getElementById('btn-edges')?.addEventListener('click',e=>{
+      this.viewer.setFeatureEdges(!this.viewer._edgesVisible);
+      e.currentTarget.classList.toggle('active',this.viewer._edgesVisible);
+    });
+    document.getElementById('contour-bands')?.addEventListener('change',e=>{
+      this.viewer.contourBands=Number(e.target.value); this._rebuild(); this._updateLegend();
+    });
     document.getElementById('btn-wireframe').addEventListener('click', () => {
       this.state.wireframe = !this.state.wireframe;
       document.getElementById('btn-wireframe').classList.toggle('active', this.state.wireframe);
@@ -785,7 +794,7 @@ export class UIController {
     const unit = this.state.currentField.unit || '';
     const label = this.state.currentField.label || this.state.currentField.name || 'Field';
     title.textContent = label + (unit ? ' (' + unit + ')' : '');
-    bar.style.background = colormapToCSS(this.state.colormapName);
+    bar.style.background = (this.state.format==='v3.0' ? bandedColormapCSS(this.state.colormapName,this.viewer.contourBands) : null) || colormapToCSS(this.state.colormapName);
 
     const fmt = (v) => {
       if (v == null) return '0';
@@ -876,6 +885,34 @@ export class UIController {
   }
 
   /* ── Animation Speed Control ── */
+  _bindNavigationSensitivity() {
+    const key = 'abaqus-viewer.navigation.v1';
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(key)) || {}; } catch { /* Storage may be unavailable. */ }
+    for (const [id, property] of [['rotate', 'rotateSpeed'], ['zoom', 'zoomSpeed']]) {
+      const slider = document.getElementById(id + '-sensitivity');
+      const label = document.getElementById(id + '-sensitivity-val');
+      if (!slider || !label) continue;
+      const stored = saved[property];
+      if (typeof stored === 'number' && Number.isFinite(stored) &&
+          stored >= Number(slider.min) && stored <= Number(slider.max)) {
+        this.viewer.controls[property] = stored;
+      }
+      slider.value = String(this.viewer.controls[property]);
+      label.textContent = Number(slider.value).toFixed(1);
+      slider.addEventListener('input', () => {
+        const value = Number(slider.value);
+        if (!Number.isFinite(value) || value < Number(slider.min) || value > Number(slider.max)) return;
+        this.viewer.controls[property] = value;
+        label.textContent = value.toFixed(1);
+        try {
+          localStorage.setItem(key, JSON.stringify({rotateSpeed:this.viewer.controls.rotateSpeed,
+            zoomSpeed:this.viewer.controls.zoomSpeed}));
+        } catch { /* The live controls still work without persistent storage. */ }
+      });
+    }
+  }
+
   _bindAnimSpeed() {
     const slider = document.getElementById('anim-speed');
     const val = document.getElementById('anim-speed-val');
