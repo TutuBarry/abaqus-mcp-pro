@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "version": "1.1.0rc2",
+  "date": "2026-10-28",
+  "timezone": "Asia/Shanghai",
+  "source": {
+    "branch": "master",
+    "commit": "7cfecb8",
+    "worktree_clean": false,
+    "scope": "Current working tree, including uncommitted changes"
+  },
+  "supersedes_current_status": [
+    "docs/VALIDATION_RC2_2026-09-30.json",
+    "docs/VALIDATION_2026-09-30.json"
+  ],
+  "overall_status": "conditional_pass_current_worktree_not_public_release",
+  "tested_environment": {
+    "os": "Windows",
+    "abaqus_versions_installed": [
+      "2026"
+    ],
+    "python_version": "3.14.6",
+    "node_version": "26.5.0",
+    "browser_gpu": {
+      "browser": "Microsoft Edge",
+      "webgl_version": "WebGL 2.0",
+      "renderer": "ANGLE Intel Iris Xe Graphics Direct3D11"
+    }
+  },
+  "protected_gui_session": {
+    "preserved": true,
+    "listener": {
+      "host": "127.0.0.1",
+      "port": 48152,
+      "pid": 28484
+    },
+    "processes": [
+      {
+        "pid": 28484,
+        "name": "ABQcaeG.exe"
+      },
+      {
+        "pid": 38416,
+        "name": "ABQcaeK.exe"
+      },
+      {
+        "pid": 41288,
+        "name": "SMAPython.exe"
+      }
+    ]
+  },
+  "mcp_stdio_e2e": {
+    "status": "passed",
+    "command": "python scripts/accept_mcp_connect.py --output .acceptance/final-gates/stdio-connect-e2e.json --timeout 60 --cwd . --runs 10",
+    "checks": {
+      "fresh_mcp_stdio_processes": 10,
+      "passed_runs": 10,
+      "failed_runs": 0,
+      "connect_abaqus_calls": 20,
+      "bridge_ready_calls": 20,
+      "real_gui_pings": 10,
+      "backend": "gui",
+      "abaqus_version": "2026",
+      "run_duration_seconds_min": 2.43,
+      "run_duration_seconds_max": 3.904
+    },
+    "probe_stability_fix": {
+      "observed_failure": "A 1.0 second health probe intermittently returned bridge_unresponsive while a subsequent 5 second ping succeeded.",
+      "timeout_seconds": 5.0,
+      "bounded_attempts": 2,
+      "regression_test": "tests.test_cae_connection.test_probe_recovers_after_transient_timeout",
+      "pre_fix_failure_evidence_retained": [
+        ".acceptance/stdio/connect_e2e_transient_failure.json",
+        ".acceptance/stdio/connect_e2e.json"
+      ]
+    },
+    "evidence": [
+      ".acceptance/final-gates/stdio-connect-e2e.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-01.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-02.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-03.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-04.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-05.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-06.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-07.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-08.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-09.json",
+      ".acceptance/final-gates/stdio-connect-e2e.run-10.json",
+      ".acceptance/final-gates/stdio-connect-e2e.log"
+    ]
+  },
+  "fault_handling": {
+    "status": "passed",
+    "controlled_faults": {
+      "command": "python scripts/accept_mcp_faults.py --output .acceptance/faults/report.json",
+      "checks": {
+        "bridge_port_loss_reports_error": true,
+        "in_flight_disconnect_reports_error": true,
+        "same_stdio_session_recovers_after_restart": true,
+        "unresponsive_port_status": "bridge_unresponsive",
+        "port_conflict_does_not_duplicate_cae": true,
+        "controlled_launcher_crash_exit_code": 23,
+        "controlled_launcher_failure_status": "launch_failed",
+        "same_stdio_session_relaunches_bridge": true,
+        "live_abaqus_processes_preserved": true
+      },
+      "evidence": [
+        ".acceptance/faults/report.json",
+        ".acceptance/faults/run.log"
+      ]
+    },
+    "real_gui_crash_recovery": {
+      "command": "python scripts/accept_mcp_gui_crash.py --output .acceptance/gui-crash/report.json",
+      "status": "passed",
+      "scope": "Disposable real GUI Abaqus/CAE force-kill and same MCP stdio session recovery",
+      "acceptance_port": 48153,
+      "protected_port": 48152,
+      "first_connect_status": "launched_cae_bridge_ready",
+      "first_ping": "ok",
+      "killed_process_names": [
+        "ABQcaeK.exe",
+        "ABQcaeG.exe"
+      ],
+      "listener_closed_after_kill": true,
+      "ping_after_kill": "tool_error",
+      "same_stdio_session_reconnect_status": "launched_cae_bridge_ready",
+      "recovered_ping": "ok",
+      "recovered_abaqus_version": "2026",
+      "protected_session_preserved": true,
+      "evidence": [
+        ".acceptance/gui-crash/report.json",
+        ".acceptance/gui-crash/report.attempt-1.json"
+      ]
+    }
+  },
+  "python_tests": {
+    "status": "passed",
+    "command": "python -m pytest tests -q --junitxml=.acceptance/final-gates/junit.xml",
+    "python_version": "3.14.6",
+    "passed": 410,
+    "failed": 0,
+    "elapsed_seconds": 5.18,
+    "evidence": [
+      ".acceptance/final-gates/junit.xml",
+      ".acceptance/final-gates/pytest.log"
+    ],
+    "scope_note": "Repository root pytest collects a separate MechAgent project; this gate is explicitly scoped to this project's tests directory."
+  },
+  "frontend": {
+    "tests": {
+      "status": "passed",
+      "command": "npm test",
+      "passed": 57,
+      "failed": 0,
+      "duration_ms": 469.941,
+      "node_version": "26.5.0",
+      "evidence": ".acceptance/final-gates/viewer-test.log"
+    },
+    "production_build": {
+      "status": "passed",
+      "command": "npm run build",
+      "vite_version": "7.3.6",
+      "elapsed_ms": 844,
+      "outputs": [
+        "viewer/dist/index.html",
+        "viewer/dist/assets/index-Oar2O-qv.css",
+        "viewer/dist/assets/index-D8w-vEk5.js",
+        "viewer/dist/assets/three-q8dRugrf.js"
+      ],
+      "evidence": ".acceptance/final-gates/viewer-build.log"
+    }
+  },
+  "static_checks": {
+    "source_pyflakes": {
+      "status": "passed",
+      "command": "python -m pyflakes src",
+      "evidence": ".acceptance/final-gates/pyflakes.log"
+    },
+    "full_repository_pyflakes": {
+      "status": "reports_existing_findings",
+      "scope": "Tests and platform scripts outside src"
+    },
+    "ruff_src": {
+      "status": "reports_historical_style_and_import_findings",
+      "finding_count": 136,
+      "counted_as_full_pass": false,
+      "evidence": ".acceptance/final-gates/ruff-src.log"
+    }
+  },
+  "release_artifacts": {
+    "status": "passed",
+    "build_environment": "isolated hatchling build environment",
+    "output_directory": ".acceptance/final-gates/dist",
+    "artifacts": [
+      {
+        "file": ".acceptance/final-gates/dist/abaqus_mcp_pro-1.1.0rc2-py3-none-any.whl",
+        "sha256": "6557f965f39331a665f536743522b8c0f46b56784ac6c78312815e0828106e53"
+      },
+      {
+        "file": ".acceptance/final-gates/dist/abaqus_mcp_pro-1.1.0rc2.tar.gz",
+        "sha256": "9d0ae5403a59e5e8fe8653f41cf7a6083583a540decbfe2c3c383b01dee9ddd"
+      }
+    ],
+    "twine_check": "passed",
+    "evidence": [
+      ".acceptance/final-gates/build.log",
+      ".acceptance/final-gates/twine_check.log"
+    ]
+  },
+  "installed_wheel": {
+    "status": "passed",
+    "environment": ".acceptance/final-gates/venv-isolated",
+    "include_system_site_packages": false,
+    "installed_version": "1.1.0rc2",
+    "package_location": ".acceptance/final-gates/venv-isolated/Lib/site-packages/abaqus_mcp_pro/__init__.py",
+    "pythonpath_and_pythonhome_cleared": true,
+    "checks": {
+      "full_dependency_graph_installed_from_wheel": true,
+      "package_loaded_from_venv": true,
+      "stdio_roundtrip": true,
+      "tools": 139,
+      "prompts": 13,
+      "resources": 74,
+      "viewer_assets": true,
+      "installed_viewer_http": true,
+      "plugin_runtime": true
+    },
+    "evidence": [
+      ".acceptance/final-gates/isolated_venv_config.log",
+      ".acceptance/final-gates/pip_install_isolated.log",
+      ".acceptance/final-gates/pip_freeze_isolated.log",
+      ".acceptance/final-gates/isolated_import_paths.log",
+      ".acceptance/final-gates/wheel_smoke_isolated.log"
+    ]
+  },
+  "merged_connection_and_copen_evidence": {
+    "status": "passed_for_recorded_scope",
+    "abaqus_gui_version": "2026",
+    "job_status": "COMPLETED",
+    "nodes": 2428,
+    "elements": 1792,
+    "frames": 15,
+    "copen_min_mm": -5.16606953071021e-14,
+    "cpress_max_mpa": 40.7448959350586,
+    "limited_penetration": true,
+    "contact_fields_exported": [
+      "CPRESS",
+      "COPEN",
+      "CSHEAR1",
+      "CSHEAR2",
+      "CSLIP1",
+      "CSLIP2"
+    ],
+    "browser_copen": {
+      "status": "passed",
+      "field_switch_changes_canvas": true,
+      "contact_surface_filter": true,
+      "console_errors": 0,
+      "page_errors": 0
+    },
+    "viewer_interaction_case": {
+      "status": "passed",
+      "nodes": 57333,
+      "elements": 164623,
+      "webgl_version": "WebGL 2.0"
+    },
+    "evidence": [
+      ".acceptance/connect/cold_start.json",
+      ".acceptance/connect/existing_cae_manual_bridge_required.json",
+      ".acceptance/connect/manual_start_and_ping_after_start.json",
+      ".acceptance/copen/report.json",
+      ".acceptance/copen/browser_report.json",
+      ".acceptance/viewer/artifacts/report.json"
+    ]
+  },
+  "contact_convergence": {
+    "status": "passed",
+    "latest_curved_series": {
+      "refinements": [
+        "3",
+        "3.5",
+        "4"
+      ],
+      "force_N": [
+        410.76451701670885,
+        411.4852435812354,
+        411.727820135653
+      ],
+      "projected_area_mm2": [
+        22.333333174387615,
+        20.97959253739336,
+        20.0625
+      ],
+      "peak_pressure_mpa": [
+        39.77317810058594,
+        40.40777587890625,
+        39.66726303100586
+      ],
+      "peak_mises_mpa": [
+        29.2095890045166,
+        29.10851287841797,
+        29.165117263793945
+      ],
+      "last_two_relative_changes": {
+        "force_N": 0.0005891672667095652,
+        "projected_area_mm2": 0.04571177756477799,
+        "peak_pressure_mpa": 0.01866811045979073,
+        "peak_mises_mpa": 0.0019408248855644471
+      },
+      "all_reported_metrics_within_5_percent": true,
+      "target_metric_area_within_5_percent": true
+    },
+    "retained_flat_and_extension_evidence": {
+      "flat_levels": [
+        "2",
+        "2.5",
+        "3"
+      ],
+      "flat_all_reported_metrics_within_5_percent": true,
+      "friction_extension_passed": true,
+      "plastic_extension_passed": true
+    },
+    "scope_note": "Area is an undeformed projected nodal estimate, not an exact contact boundary. Materials are illustrative and not calibrated.",
+    "evidence": [
+      ".acceptance/contact-convergence/report.json",
+      ".acceptance/contact-convergence/report.levels-2-to-3.json",
+      ".acceptance/contact-convergence/curved-3.json",
+      ".acceptance/contact-convergence/curved-3.5.json",
+      ".acceptance/contact-convergence/curved-4.json"
+    ]
+  },
+  "large_solid_contact": {
+    "status": "passed",
+    "nodes": 124138,
+    "elements": 114688,
+    "frames": 15,
+    "cpus": 8,
+    "solver_seconds": 819.1107190000039,
+    "raw_force_N": 411.727820135653,
+    "force_balance_relative": 3.123531260072019e-07,
+    "artificial_energy_ratio": 0.00010286235822513191,
+    "pressure_force_relative_difference": 0.003084263642453456,
+    "checks": {
+      "completed_time": true,
+      "force_balance_1e-5": true,
+      "artificial_energy_below_5_percent": true,
+      "contact_pressure_present": true,
+      "nonnegative_contact_pressure": true,
+      "contact_opening_present": true,
+      "limited_penetration": true,
+      "finite_contact_metrics": true
+    },
+    "export": {
+      "status": "completed",
+      "seconds": 222.8466929999995,
+      "fields": [
+        "S",
+        "U",
+        "CPRESS",
+        "COPEN"
+      ]
+    },
+    "evidence": [
+      ".acceptance/large-contact/report.json",
+      ".acceptance/large-contact/validation.json"
+    ]
+  },
+  "million_node_rod": {
+    "status": "passed",
+    "scope": "Real connected T3D2 rod, U-only export; not solid contact or GPU scaling",
+    "nodes": 1000001,
+    "elements": 1000000,
+    "solver_seconds": 115.86824339999293,
+    "displacement_mm": 0.04761806130409241,
+    "reaction_N": -999.9759521484375,
+    "export_status": "completed",
+    "export_seconds": 241.38514650000434,
+    "evidence": [
+      ".acceptance/million-rod/report.json",
+      ".acceptance/million-rod/1000000/validation.json"
+    ]
+  },
+  "million_node_browser_gpu": {
+    "status": "passed",
+    "scope": "Browser GPU rendering of the million-node T3D2 model; not a million-node solid-contact model",
+    "nodes": 1000001,
+    "elements": 1000000,
+    "line_positions": 1000001,
+    "line_indices": 2000000,
+    "webgl_version": "WebGL 2.0",
+    "renderer": "ANGLE Intel Iris Xe Graphics Direct3D11",
+    "total_load_ms": 8739.974300000002,
+    "forced_render_fps": 56.211541659737236,
+    "first_rendered_frame_ms": 180.33829999999944,
+    "non_background_ratio": 0.04671557297424044,
+    "console_errors": 0,
+    "page_errors": 0,
+    "evidence": [
+      ".acceptance/million-gpu/report.json",
+      ".acceptance/million-gpu/million-node-gpu.png"
+    ]
+  },
+  "cross_version": {
+    "status": "environment_blocked",
+    "installed_release_directories": [
+      "2026"
+    ],
+    "other_versions_detected": false,
+    "reason": "Only Abaqus 2026 is installed on the acceptance machine.",
+    "evidence": ".acceptance/environment/abaqus_versions.json"
+  },
+  "remote_ci": {
+    "status": "not_run",
+    "reason": "No remote CI pipeline was executed in this acceptance pass."
+  },
+  "public_release": {
+    "status": "not_performed",
+    "reason": "No tagged, packaged, or public distribution release was performed. Source submission is tracked separately."
+  },
+  "architecture_boundaries": {
+    "remote_bridge_enabled": false,
+    "automated_cae_start_when_not_open": true,
+    "manual_bridge_menu_when_cae_open": "Plug-ins -> ABAQUS MCP Pro -> Start MCP Bridge",
+    "nogui_policy": "Only when explicitly selected by the user, typically for a complete INP/noGUI solve."
+  },
+  "scope_limits": [
+    {
+      "id": "million_node_solid_contact",
+      "status": "not_claimed",
+      "reason": "The million-node real solve and browser GPU gates use a T3D2 line model."
+    },
+    {
+      "id": "cross_hardware_gpu",
+      "status": "not_claimed",
+      "reason": "Browser GPU performance was measured on Intel Iris Xe D3D11 only."
+    },
+    {
+      "id": "contact_area_exactness",
+      "status": "approximation",
+      "reason": "Projected contact area is an undeformed nodal-area estimate."
+    }
+  ],
+  "known_unfinished": [
+    {
+      "id": "other_abaqus_versions",
+      "status": "environment_blocked",
+      "reason": "Only Abaqus 2026 is installed and available for real solve validation."
+    },
+    {
+      "id": "remote_ci",
+      "status": "not_run",
+      "reason": "The remote pipeline has not been executed."
+    },
+    {
+      "id": "public_release",
+      "status": "not_performed",
+      "reason": "A tagged, packaged, or public distribution release has not been performed."
+    }
+  ],
+  "release_decision": {
+    "current_environment_technical_acceptance_passed": true,
+    "full_release_accepted": false,
+    "label": "validated source candidate; formal public release not performed",
+    "reason": "All recorded local acceptance gates pass for Abaqus 2026, but cross-version validation is environment-blocked, remote CI has not run, and no tagged or packaged public release was performed."
+  }
+}

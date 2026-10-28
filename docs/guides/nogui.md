@@ -1,6 +1,12 @@
 # noGUI Mode
 
-Run Abaqus in batch mode without the GUI — ideal for headless servers and CI/CD pipelines.
+Use noGUI only when the user explicitly requests noGUI, headless, or batch
+solver execution. It is not selected automatically and must not be used as a
+fallback when the GUI bridge is unavailable. The typical use case is a complete
+INP file that only needs Abaqus to run the job.
+
+Run Abaqus in batch mode without the GUI for headless servers, CI/CD pipelines,
+and other explicitly requested batch processing.
 
 ## TCP Agent
 

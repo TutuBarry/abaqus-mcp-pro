@@ -1,12 +1,14 @@
 # Runtime capabilities and migration
 
-The MCP surface has 138 tools, 13 prompts and 74 resources. Registration is not proof that all business operations have been validated in Abaqus. A generated schema snapshot is in `reference/tool-manifest.json`.
+The MCP surface has 139 tools, 13 prompts and 74 resources. Registration is not proof that all business operations have been validated in Abaqus. A generated schema snapshot is in `reference/tool-manifest.json`.
 
 Current release candidate: **1.1.0rc2**. Actual CAE 2026 menu start/stop, GUI job submission/monitoring and ODB lifecycle passed. Browser visual/GPU and other Abaqus versions remain unverified. See [rc2 delivery](DELIVERY_RC2_2026-09-30.md); dated evidence sections below are historical.
 
 ## Bridge
 
 `bridge_capabilities` reports the actual runtime methods, protocol version and read-only policy. The installed GUI plugin now includes a sibling `abaqus_mcp_pro_runtime` directory; reinstall using `abaqus-mcp-pro-setup` after upgrading, then restart the bridge in CAE. Copying only the GUI plugin file is insufficient.
+
+The local GUI bridge is the default execution path. noGUI is opt-in only: use it when the user explicitly requests noGUI, headless, or batch solver execution, generally for a complete INP file that only needs Abaqus to run the job. The server must not select noGUI automatically or fall back to it when the bridge, plugin, or GUI automation is unavailable.
 
 Set the same `ABAQUS_MCP_TOKEN` in the MCP client process and Abaqus process. This protects socket and file commands when configured. Bindings default to loopback. `ABAQUS_MCP_READ_ONLY=1` disables arbitrary kernel execution and write-mode ODB opening; wrappers implemented through arbitrary code are consequently unavailable even when their MCP annotation says read-only. Annotations describe intended behavior and are not enforcement.
 

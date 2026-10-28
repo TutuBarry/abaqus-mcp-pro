@@ -206,10 +206,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg-app);color:var(--text-
 
 /* ── Responsive ── */
 @media(max-width:700px){
+  #topbar{padding:0 8px;gap:8px}
+  #topbar .logo-area{gap:6px}
+  #topbar .logo-sub{display:none}
+  #topbar .colormap-picker{padding:2px 6px;gap:0}
+  #topbar .colormap-picker .cm-label{display:none}
+  #topbar .colormap-picker select{width:138px;padding-left:4px}
   #sidebar.open{width:100vw;min-width:100vw;position:absolute;left:44px;top:44px;bottom:0;z-index:20}
-  #anim-bar input[type=range]{width:60px}
+  #anim-bar{gap:4px;max-width:calc(100% - 16px);padding:5px 8px}
+  #anim-bar input[type=range]{width:52px}
+  #ab-time{display:none}
   #toolbar{top:8px;left:8px}
   #toolbar .tb-group+.tb-group::before{content:"";display:none}
+}
+
+@media(max-width:360px){
+  #topbar .logo-text{display:none}
+  #topbar .colormap-picker select{width:118px}
+  #anim-bar .ab-loop-group{display:none}
 }
 
 

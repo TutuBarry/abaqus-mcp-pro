@@ -18,6 +18,7 @@ Abaqus MCP Pro connects AI clients (Codex, Claude, etc.) to a running Abaqus/CAE
 
 ## Quick Links
 
+- [Current validation report (2026-10-28)](DELIVERY_RC2_2026-10-28.md)
 - [Installation](getting-started/installation.md)
 - [Quick Start](getting-started/quickstart.md)
 - [Tools Reference](guides/tools.md)

@@ -55,6 +55,7 @@ Thumbs.db
 
 # Test artifacts
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
@@ -62,6 +63,14 @@ htmlcov/
 *.tmp
 *.bak
 *.orig
+
+# Abaqus local runtime state
+abaqus.guiState*
+abaqus.rpy.*
+abq.app_cache*
+
+# Local acceptance evidence, environments, and archives
+.acceptance/
 
 # Example outputs
 examples/output/
@@ -82,4 +91,3 @@ test_patch.txt
 
 # Dev scratch scripts (one-off patches, never committed)
 dev/
-viewer/samples/beam_model_converted.json

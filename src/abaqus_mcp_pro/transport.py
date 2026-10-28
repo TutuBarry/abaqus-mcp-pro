@@ -79,15 +79,15 @@ async def _bridge_request(method: str, params: dict[str, Any] | None = None, tim
         raise RuntimeError(
             "Cannot connect to Abaqus bridge (Connection Refused)\n"
             "Please verify:\n"
-            "1. Abaqus/CAE is open and running\n"
-            "2. Click Plug-ins -> ABAQUS MCP -> Start MCP Bridge in Abaqus menu\n"
+            "1. Call connect_abaqus to start Abaqus/CAE when it is not running\n"
+            "2. If Abaqus/CAE is already open, click Plug-ins -> ABAQUS MCP Pro -> Start MCP Bridge\n"
             f"Bridge address: {DEFAULT_HOST}:{DEFAULT_PORT}\n"
             f"Error details: {exc}\n"
             "\n"
             "无法连接到 Abaqus 桥接器（连接被拒绝）\n"
             "请检查：\n"
-            "1. Abaqus/CAE 已打开并正在运行\n"
-            "2. 在 Abaqus 菜单中点击 Plug-ins -> ABAQUS MCP -> Start MCP Bridge\n"
+            "1. 若 Abaqus/CAE 尚未打开，请调用 connect_abaqus 启动\n"
+            "2. 若 Abaqus/CAE 已打开，请在 Abaqus 菜单中点击 Plug-ins -> ABAQUS MCP Pro -> Start MCP Bridge\n"
             f"桥接器地址：{DEFAULT_HOST}:{DEFAULT_PORT}"
         ) from exc
     except TimeoutError as exc:

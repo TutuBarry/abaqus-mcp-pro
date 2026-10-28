@@ -26,6 +26,7 @@ async def main():
     resources = await server.mcp.list_resources()
     print(json.dumps({
         "version": server.mcp.version,
+        "instructions": server.INSTRUCTIONS,
         "tools": [tool.name for tool in tools],
         "prompts": [prompt.name for prompt in prompts],
         "resources": [str(resource.uri) for resource in resources],
@@ -46,8 +47,14 @@ asyncio.run(main())
     surface = json.loads(result.stdout)
 
     from abaqus_mcp_pro import __version__
+    instructions = " ".join(surface["instructions"].split())
+
     assert surface["version"] == __version__
-    assert {"ping", "run_python", "odb_open"} <= set(surface["tools"])
+    assert {"connect_abaqus", "ping", "run_python", "odb_open"} <= set(surface["tools"])
+    assert "NO-GUI SUBPROCESS (OPT-IN ONLY)" in instructions
+    assert "Never select this mode automatically" in instructions
+    assert "complete INP file" in instructions
+    assert "mode 2 for headless/automated work" not in instructions
     assert "session_workflow" in surface["prompts"]
     assert "abaqus://skills/index" in surface["resources"]
     assert (tmp_path / "abaqus_mcp_pro_gui_plugin.py").is_file()

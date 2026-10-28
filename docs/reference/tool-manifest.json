@@ -1,7 +1,7 @@
 {
   "version": "1.1.0rc2",
   "counts": {
-    "tools": 138,
+    "tools": 139,
     "prompts": 13,
     "resources": 74
   },
@@ -430,6 +430,44 @@
         "read_only_hint": true,
         "destructive_hint": false,
         "idempotent_hint": true,
+        "open_world_hint": false
+      }
+    },
+    {
+      "name": "connect_abaqus",
+      "description": "Connect to local Abaqus/CAE, launching the GUI only when CAE is not running.\n\nAn existing CAE session is never automated through its plugin menu. If the\nbridge is not listening, the caller must ask the user to click\n``Plug-ins -> ABAQUS MCP Pro -> Start MCP Bridge``.\n",
+      "input_schema": {
+        "properties": {
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          },
+          "cwd": {
+            "default": "",
+            "title": "Cwd",
+            "type": "string"
+          }
+        },
+        "title": "connect_abaqusArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "connect_abaqusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": true,
+        "idempotent_hint": false,
         "open_world_hint": false
       }
     },
@@ -7116,7 +7154,7 @@
     },
     {
       "name": "run_python_no_gui",
-      "description": "",
+      "description": "Run Python in an Abaqus subprocess only when noGUI is explicitly requested.",
       "input_schema": {
         "properties": {
           "code": {
@@ -7149,7 +7187,7 @@
     },
     {
       "name": "abaqus_cae_no_gui",
-      "description": "",
+      "description": "Run a CAE noGUI script only when noGUI is explicitly requested.",
       "input_schema": {
         "properties": {
           "code": {
@@ -7182,7 +7220,7 @@
     },
     {
       "name": "submit_job_no_gui",
-      "description": "",
+      "description": "Run a complete INP file through noGUI when the user explicitly requests it.",
       "input_schema": {
         "properties": {
           "input_file": {

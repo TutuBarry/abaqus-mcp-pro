@@ -20,6 +20,14 @@ _abaqus_main_window_cache: Optional[Any] = None
 _abaqus_app_instance_cache: Optional[Any] = None
 
 
+def _looks_like_abaqus_gui_process(name: str) -> bool:
+    name_lower = str(name or "").lower()
+    return (
+        ("abaqus" in name_lower or "abq" in name_lower)
+        and ("cae" in name_lower or "viewer" in name_lower)
+    )
+
+
 def find_abaqus_window_and_app():
     """Find the main Abaqus/CAE window and connect a pywinauto Application.
 
@@ -57,9 +65,7 @@ def find_abaqus_window_and_app():
             try:
                 _, pid = win32process.GetWindowThreadProcessId(win_ref._hWnd)
                 proc = psutil.Process(pid)
-                if "abaqus" in proc.name().lower() and (
-                    "cae" in proc.name().lower() or "viewer" in proc.name().lower()
-                ):
+                if _looks_like_abaqus_gui_process(proc.name()):
                     found_win_obj = win_ref
                     break
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):

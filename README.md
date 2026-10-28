@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
 <img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python">
 <img src="https://img.shields.io/github/v/release/TutuBarry/abaqus-mcp-pro?color=green" alt="Release">
-<img src="https://img.shields.io/badge/Abaqus-2024%2B-orange" alt="Abaqus">
+<img src="https://img.shields.io/badge/Abaqus-2026%20validated-orange" alt="Abaqus 2026 validated">
 
 <br>
 <br>
@@ -44,9 +44,11 @@ The AI handles every step through MCP tools, and the model updates live in your 
 
 ## Engineering validation status
 
-2026-09-30: **1.1.0rc2** adds parsed-frame caching and geometry reuse, authenticated task history, friction/plastic contact examples, and project comparison reports. 391 Python and 43 frontend tests pass. Real CAE menu start/stop, GUI job submission/monitoring and ODB access passed on Abaqus 2026. Browser visual/GPU and other Abaqus versions remain unverified. See [rc2 evidence and limitations](docs/DELIVERY_RC2_2026-09-30.md).
+2026-10-28: **1.1.0rc2 is a local release candidate.** Current-worktree acceptance passes on Windows with Abaqus 2026, including 10/10 fresh MCP stdio runs, real GUI CAE force-kill recovery, 410 Python tests, 57 frontend tests, the production viewer build, isolated wheel installation, a 124,138-node solid-contact solve, and a 1,000,001-node T3D2 solve and WebGL rendering run.
 
-Historical baseline: On 2026-09-28, the six reference cases and three-point load scan passed on a real local Abaqus 2026 installation. ODB/VTU numerical comparisons and noGUI kernel/socket checks passed; 379 software tests pass. GUI menu interaction, other Abaqus versions and large-model performance remain unverified. See [real validation evidence](docs/ABAQUS_2026_VALIDATION.md). See [delivery evidence](docs/DELIVERY_2026-09-26.md), [capabilities and migration](docs/CAPABILITIES.md), and [reference workflow](examples/verification/README.md).
+This is not public-release acceptance. Only Abaqus 2026 is installed and validated locally; other Abaqus versions remain environment-blocked. Remote CI has not run, and this source submission is not a tagged or packaged public release. The million-node gate covers a T3D2 line model and one Intel Iris Xe WebGL 2 environment, not million-node solid contact or cross-hardware GPU scaling. Contact area is a projected nodal estimate, and the demonstration materials are not engineering-calibrated. The bridge remains loopback-only, and noGUI is enabled only when explicitly selected.
+
+See the [current delivery report](docs/DELIVERY_RC2_2026-10-28.md) and [machine-readable validation](docs/VALIDATION_RC2_2026-10-28.json). The 2026-09-30 reports are retained as historical snapshots.
 
 ## Quick Start
 
@@ -59,8 +61,8 @@ cd ..
 pip install -e .
 abaqus-mcp-pro-setup
 
-# 2. Launch Abaqus/CAE, then activate the plugin
-#    Plug-ins > ABAQUS MCP Pro > Start MCP Bridge
+# 2. Ask MCP to connect. connect_abaqus launches CAE when it is not running.
+#    If CAE is already open, click Plug-ins > ABAQUS MCP Pro > Start MCP Bridge.
 
 # 3. Connect your AI client
 codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
@@ -80,7 +82,7 @@ codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
 TCP socket bridge. No file I/O, no polling.
 </td>
 <td width="33%" align="center">
-<h3>138 MCP Tools</h3>
+<h3>139 MCP Tools</h3>
 Model . Job . ODB . KPI . Capsule . Contract . Report . Viewport . Doctor
 </td>
 <td width="33%" align="center">
@@ -118,7 +120,7 @@ Bridge listens on 127.0.0.1:48152. Data never leaves your machine.
          | stdio (MCP)
          v
 +------------------+
-|  MCP Server      |  server.py - 138 tools, 13 prompts, 74 resources
+|  MCP Server      |  server.py - 139 tools, 13 prompts, 74 resources
 |  (Python)        |
 +--------+---------+
          | TCP :48152
@@ -163,7 +165,7 @@ no intermediate JSON conversion, no cloud upload.
 
 The agreed result-sharing direction is **ODB → lightweight export → local preflight → optional Miaoda publication → share link**. Keep local viewing available and reuse one viewer for local and hosted results. Generic preflight and cloud publication are planned work; the current per-result deployment is not yet a reusable MCP tool. See [implementation status and roadmap](docs/RESULT_SHARING_WORKFLOW.md).
 
-**1.1.0rc2 (2026-09-30, local release candidate)** defaults static results to the final frame and Mises, adds CPRESS/COPEN/CSHEAR/CSLIP with contact-pair identity, independent mesh-body visibility and contact-output surface filtering. Units are explicitly declared, never inferred. See [iteration evidence and remaining gates](docs/DELIVERY_2026-09-30.md).
+**1.1.0rc2 (verified 2026-10-28, local release candidate)** defaults static results to the final frame and Mises, adds CPRESS/COPEN/CSHEAR/CSLIP with contact-pair identity, independent mesh-body visibility and contact-output surface filtering. Units are explicitly declared, never inferred. See [current acceptance evidence and remaining gates](docs/DELIVERY_RC2_2026-10-28.md).
 
 Successful `submit_job_no_gui(wait=True)` calls automatically export and return `viewer.url`; `submit_job(wait=True)` does the same when its ODB is locally accessible. After a nonblocking job completes, call `open_result_viewer(odb_path, unit_system)`. Use `view_result=False` to disable automatic export. Batch reference verification supports `abaqus-mcp-pro-verify --run --viewer`; solver acceptance and viewer status are recorded separately.
 
@@ -250,7 +252,8 @@ or any VTK-compatible viewer. No proprietary format lock-in.
 
 | Category | Tool | What it does |
 |----------|------|---------------|
-| **Bridge** | ping | Connection health + session status |
+| **Bridge** | connect_abaqus | Launch local CAE when absent, or request manual bridge start |
+| | ping | Connection health + session status |
 | | check_abaqus_connection | Human-readable status report |
 | **Code** | run_python | Execute arbitrary Python in Abaqus kernel |
 | | execute_script | Compatibility wrapper (stdout text) |
@@ -296,7 +299,7 @@ create_instance, rotate_instance, translate_instance, create_reference_point
 | Requirement | Version |
 |-------------|---------|
 | Python | 3.10+ |
-| Abaqus | 2024+ (Python 3.10) |
+| Abaqus | 2026 validated; other 2024+ versions targeted for future cross-version acceptance |
 | AI Client | Codex, Claude Desktop, etc. |
 
 ### Install
@@ -337,7 +340,8 @@ pip install fastapi uvicorn    # Viewer server (optional)
 ```bash
 # GUI mode (primary) - launch Abaqus/CAE, activate plugin
 
-# noGUI mode - batch execution
+# noGUI mode (opt-in only) - use only when the user explicitly requests it
+# Typically for a complete INP file that only needs solver execution
 abaqus cae noGUI=scripts/start_abaqus_mcp_pro_agent.py
 
 # File IPC fallback
@@ -478,4 +482,4 @@ abaqus-mcp-pro-project history runs
 abaqus-mcp-pro-project compare runs/<run-id> --output reports/scan
 ```
 
-MCP tools: `list_project_runs`, `compare_project_runs`. Reports include JSON, CSV and standalone HTML. Units and KPI selectors must match to compare values; failed cases remain visible and cannot become baselines. The viewer ODB panel also provides authenticated export-task history and diagnostic log tails. See [rc2 delivery](docs/DELIVERY_RC2_2026-09-30.md).
+MCP tools: `list_project_runs`, `compare_project_runs`. Reports include JSON, CSV and standalone HTML. Units and KPI selectors must match to compare values; failed cases remain visible and cannot become baselines. The viewer ODB panel also provides authenticated export-task history and diagnostic log tails. See [current rc2 delivery](docs/DELIVERY_RC2_2026-10-28.md).

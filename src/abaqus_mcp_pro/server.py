@@ -55,9 +55,15 @@ This server supports three execution modes for talking to Abaqus:
 
 1. TCP BRIDGE (default) -- Requires the Abaqus/CAE GUI with the bridge plugin loaded.
    Fastest, most capable mode. Use for interactive modeling and post-processing.
+   Call connect_abaqus before bridge operations. It starts CAE only when no CAE
+   session is running. If CAE is already open without the bridge, ask the user
+   to click Plug-ins -> ABAQUS MCP Pro -> Start MCP Bridge.
 
-2. NO-GUI SUBPROCESS -- Uses "abaqus python" and "abaqus cae noGUI=" via subprocess.
-   No GUI needed. Ideal for headless servers, CI/CD, and batch jobs.
+2. NO-GUI SUBPROCESS (OPT-IN ONLY) -- Uses "abaqus python" and "abaqus cae noGUI="
+   via subprocess. Use this mode only when the user explicitly requests noGUI,
+   headless, or batch solver execution. It is generally intended for a complete
+   INP file that only needs Abaqus to run the job. Never select this mode
+   automatically and never use it as a fallback when another mode fails.
    Tools: run_python_no_gui, abaqus_cae_no_gui, submit_job_no_gui, check_job_status_nogui,
    get_abaqus_command_path.
    Set ABAQUS_COMMAND env var to specify the Abaqus executable path.
@@ -68,8 +74,8 @@ This server supports three execution modes for talking to Abaqus:
    Requires: pip install pywinauto pygetwindow psutil pywin32
 
 Always check which mode is available before choosing a tool. Prefer mode 1 when the bridge
-is connected, mode 2 for headless/automated work, and mode 3 as a fallback when the bridge
-plugin can't be installed.
+is connected. Do not invoke mode 2 unless the user explicitly requests it. Use mode 3 only
+as a fallback when the bridge plugin can't be installed.
 """
 
 def _ensure_gui_plugin() -> None:

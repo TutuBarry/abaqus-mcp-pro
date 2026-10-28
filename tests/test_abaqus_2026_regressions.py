@@ -2,7 +2,7 @@
 import sys
 from types import SimpleNamespace as NS
 
-from abaqus_mcp_pro import agent, commands, nogui
+from abaqus_mcp_pro import agent, commands, nogui, pywinauto_tools
 
 
 def test_explicit_command_has_priority(monkeypatch):
@@ -18,6 +18,12 @@ def test_install_found_when_running_process_has_stale_path(monkeypatch):
         return
     monkeypatch.setattr(commands.Path, 'is_file', lambda path: str(path).replace('\\', '/') == 'D:/Program Files/SIMULIA/Commands/abaqus.bat')
     assert commands.find_abaqus_command().replace('\\', '/') == 'D:/Program Files/SIMULIA/Commands/abaqus.bat'
+
+
+def test_abaqus_2026_gui_process_name_is_recognized():
+    assert pywinauto_tools._looks_like_abaqus_gui_process('ABQcaeG.exe')
+    assert pywinauto_tools._looks_like_abaqus_gui_process('ABQcaeK.exe')
+    assert not pywinauto_tools._looks_like_abaqus_gui_process('notepad.exe')
 
 
 def test_field_value_array_does_not_require_slice_or_invalid_invariant(monkeypatch):

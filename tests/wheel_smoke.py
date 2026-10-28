@@ -32,7 +32,7 @@ def check_stdio():
         assert receive(1)['serverInfo']['name'] == 'abaqus-mcp-pro'
         send({'method': 'notifications/initialized'})
         send({'id': 2, 'method': 'tools/list', 'params': {}})
-        assert len(receive(2)['tools']) == 138
+        assert len(receive(2)['tools']) == 139
         send({'id': 3, 'method': 'resources/list', 'params': {}})
         assert len(receive(3)['resources']) == 74
     finally:
@@ -57,7 +57,7 @@ async def main():
         tools = await server.mcp.list_tools()
         prompts = await server.mcp.list_prompts()
         resources = await server.mcp.list_resources()
-        assert len(tools) == 138, len(tools)
+        assert len(tools) == 139, len(tools)
         assert len(prompts) == 13, len(prompts)
         assert len(resources) == 74, len(resources)
         assert all(tool.annotations is not None for tool in tools)

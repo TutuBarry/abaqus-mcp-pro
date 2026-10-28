@@ -882,3 +882,33 @@ toolset.registerGuiMenuButton(
     applicableModules=["Part", "Property", "Assembly", "Step", "Interaction", "Load", "Mesh", "Job", "Visualization"],
     description="Stop the TCP bridge.",
 )
+
+
+def _autostart_bridge():
+    """Start the bridge as soon as CAE imports this GUI plugin.
+
+    MCP sets ABAQUS_MCP_AUTOSTART=1 only for CAE processes that it launches.
+    CAE sessions opened by the user keep the bridge off and use the Plug-ins
+    menu. Failures are logged, never raised, so a busy port or a partially
+    initialized GUI cannot break CAE startup.
+    """
+    setting = os.environ.get("ABAQUS_MCP_AUTOSTART", "0").strip().lower()
+    _log("plugin imported; autostart setting=%r" % setting)
+    if setting in ("0", "false", "no", "off"):
+        _log("autostart disabled by ABAQUS_MCP_AUTOSTART")
+        return
+    try:
+        message = start_gui_agent()
+        _log("autostart: %s" % message)
+        dispatcher = globals().get("_DISPATCHER")
+        if dispatcher is not None:
+            dispatcher._schedule_poll()
+            _log("autostart: scheduled GUI request poll")
+        else:
+            _log("autostart: no dispatcher available; GUI poll not scheduled")
+        _announce(message)
+    except Exception as exc:
+        _log("autostart failed: %s" % exc)
+
+
+_autostart_bridge()

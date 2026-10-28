@@ -120,6 +120,7 @@ from .nogui import (
     check_job_status as check_job_status_nogui,
     get_abaqus_command_path,
 )
+from .cae_connection import connect_abaqus
 
 from .pywinauto_tools import (
     find_abaqus_window,
@@ -1530,6 +1531,7 @@ def register_tools(mcp) -> None:
 
     mcp_tool(bridge_capabilities)
     mcp_tool(bridge_request_status)
+    mcp_tool(connect_abaqus)
     mcp_tool(ping)
     mcp_tool(check_abaqus_connection)
     mcp_tool(run_python)

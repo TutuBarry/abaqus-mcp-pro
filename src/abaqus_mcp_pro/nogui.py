@@ -1,9 +1,11 @@
-"""No-GUI tools for Abaqus MCP Pro -- subprocess-based execution.
+"""Opt-in No-GUI tools for Abaqus MCP Pro -- subprocess-based execution.
 
 Provides tools that run Abaqus via command-line subprocess (``abaqus python``
 and ``abaqus cae noGUI=``) without requiring a live Abaqus/CAE GUI session.
-This is the preferred mode for headless servers, CI/CD pipelines, and batch
-processing where the Abaqus GUI is not available.
+Use these tools only when the user explicitly requests noGUI, headless, or
+batch solver execution. They must not be selected automatically or used as a
+fallback. The typical use case is a complete INP file that only needs Abaqus
+to run the job.
 
 Reference: codex-abaqus-main (cite/codex-abaqus-main/.../runner.py)
 """
@@ -114,6 +116,7 @@ def _run_abaqus_cae(script, timeout=None, cwd=None):
 
 
 async def run_python_no_gui(code, timeout=None, cwd=""):
+    """Run Python in an Abaqus subprocess only when noGUI is explicitly requested."""
     if not code.strip():
         raise ValueError("code must not be empty")
     import anyio
@@ -122,6 +125,7 @@ async def run_python_no_gui(code, timeout=None, cwd=""):
 
 
 async def abaqus_cae_no_gui(code, timeout=None, cwd=""):
+    """Run a CAE noGUI script only when noGUI is explicitly requested."""
     if not code.strip():
         raise ValueError("code must not be empty")
     import anyio
@@ -133,6 +137,7 @@ async def submit_job_no_gui(
     input_file, job_name="", cpus=4, double=False, user_subroutine="",
     wait=True, timeout=None, cwd="", view_result=True, unit_system="",
 ):
+    """Run a complete INP file through noGUI when the user explicitly requests it."""
     import anyio
     inp_path = Path(input_file)
     if not inp_path.is_absolute():

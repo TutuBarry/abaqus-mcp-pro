@@ -13,7 +13,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',required=True)
     parser.add_argument('--elements',type=int,nargs='+',default=[10000,100000,1000000])
+    parser.add_argument('--cpus',type=int,default=2,
+                        help='Abaqus solver CPU count')
+    parser.add_argument('--timeout',type=float,default=300,
+                        help='Solver timeout in seconds')
+    parser.add_argument('--export-timeout',type=float,default=600,
+                        help='Viewer export timeout in seconds')
     args = parser.parse_args()
+    if args.cpus < 1:
+        parser.error('cpus must be at least 1')
+    if args.timeout <= 0 or args.export_timeout <= 0:
+        parser.error('timeouts must be greater than zero')
     root = Path(args.output).resolve()
     root.mkdir(parents=True,exist_ok=True)
     records = []
@@ -59,8 +69,10 @@ S
         try:
             command = find_abaqus_command()
             start = time.monotonic()
-            code = run_process([command,'job=analysis','input=analysis.inp','interactive','cpus=2','ask_delete=OFF'],
-                               directory,directory/'solver.log',300)
+            code = run_process([command,'job=analysis','input=analysis.inp','interactive',
+                                'cpus='+str(args.cpus),'timeout='+str(int(args.timeout)),
+                                'ask_delete=OFF'],
+                               directory,directory/'solver.log',args.timeout)
             record['solver_seconds'] = time.monotonic()-start
             sta = directory/'analysis.sta'
             if code or not sta.is_file() or 'THE ANALYSIS HAS COMPLETED SUCCESSFULLY' not in sta.read_text():
@@ -87,7 +99,7 @@ finally:
             start = time.monotonic()
             task = request(session,'/api/export',{'odb_path':str(directory/'analysis.odb'),'unit_system':'N-mm-s-tonne',
                            'fields':['U'],'request_id':uuid.uuid4().hex})
-            deadline = start+600
+            deadline = start+args.export_timeout
             while task['status'] in ('queued','running') and time.monotonic()<deadline:
                 time.sleep(.5)
                 task = request(session,'/api/tasks/'+task['task_id'])

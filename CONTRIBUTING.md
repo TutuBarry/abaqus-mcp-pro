@@ -201,7 +201,7 @@ The viewer pipeline is: **ODB (.odb) -> export_to_vtk.py -> VTU (.vtu) -> vtupar
 - `viewer/export/export_to_vtk.py` -- runs inside Abaqus Python (stdlib only)
 - Reads ODB via `odbAccess.openOdb()`, extracts field data with element-nodal averaging
 - Writes standard VTK XML UnstructuredGrid (.vtu) + model.json metadata
-- To test without Abaqus, use sample files in `viewer/samples/`
+- To test without Abaqus, place temporary sample files in `viewer/samples/`
 
 ### Viewer Side (JavaScript)
 

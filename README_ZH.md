@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
 <img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python">
 <img src="https://img.shields.io/github/v/release/TutuBarry/abaqus-mcp-pro?color=green" alt="Release">
-<img src="https://img.shields.io/badge/Abaqus-2024%2B-orange" alt="Abaqus">
+<img src="https://img.shields.io/badge/Abaqus-2026%20validated-orange" alt="Abaqus 2026 已验证">
 
 <br>
 <br>
@@ -27,9 +27,11 @@
 
 ## 工程验证状态
 
-2026-09-30：**1.1.0rc2** 新增解析帧缓存、网格缓冲区复用、结果任务历史、摩擦/弹塑性接触算例及项目对比报告。391 项 Python、43 项前端测试通过；真实 CAE 菜单启停、作业提交/监控及 ODB 操作已在 Abaqus 2026 验收。浏览器目视/GPU及其他 Abaqus 版本仍未验收。详见 [rc2 开发与验收](docs/DELIVERY_RC2_2026-09-30.md)。
+2026-10-28：**1.1.0rc2 是本地交付候选版。**当前工作树已在 Windows + Abaqus 2026 环境通过验收，包括 10/10 次全新 MCP stdio 运行、真实 GUI CAE 强杀恢复、410 项 Python 测试、57 项前端测试、查看器生产构建、隔离 wheel 安装、124,138 节点实体接触求解，以及 1,000,001 节点 T3D2 求解和 WebGL 渲染。
 
-历史基线：2026-09-28已在本机Abaqus 2026上通过6个真实参考算例、三点载荷扫描、ODB/VTU数值对照及noGUI内核/socket联调；软件回归379项通过。GUI菜单交互、其他版本及大模型性能仍待验收。详见[真实验收报告](docs/ABAQUS_2026_VALIDATION.md)。详见[交付与复评](docs/DELIVERY_2026-09-26.md)、[能力及迁移说明](docs/CAPABILITIES.md)、[参考算例流程](examples/verification/README.md)。
+这不是公开发布验收。本机仅安装并验证了 Abaqus 2026，其他 Abaqus 版本仍受环境限制；远程 CI 尚未运行，本次源码提交不等同于打标签或公开分发。百万节点验收覆盖 T3D2 线模型和单一 Intel Iris Xe WebGL 2 环境，不代表百万节点实体接触或跨硬件 GPU 性能。接触面积采用投影节点面积估计，演示材料未做工程标定。桥接仅绑定本机回环地址，noGUI 只在用户明确选择时启用。
+
+详见[当前交付报告](docs/DELIVERY_RC2_2026-10-28.md)和[机器可读验收状态](docs/VALIDATION_RC2_2026-10-28.json)。2026-09-30 报告仅保留为历史快照。
 
 ## 这是什么？
 
@@ -58,8 +60,8 @@ cd ..
 pip install -e .
 abaqus-mcp-pro-setup
 
-# 2. 启动 Abaqus/CAE，激活插件
-#    Plug-ins > ABAQUS MCP Pro > Start MCP Bridge
+# 2. 让 MCP 连接。若 CAE 未打开，connect_abaqus 会启动本地 GUI 并自动开启桥接。
+#    若 CAE 已打开，请点击 Plug-ins > ABAQUS MCP Pro > Start MCP Bridge。
 
 # 3. 连接 AI 客户端
 codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
@@ -79,7 +81,7 @@ codex mcp add abaqus-mcp-pro -- python -m abaqus_mcp_pro.server
 TCP Socket 桥接。无文件 I/O，无轮询。
 </td>
 <td width="33%" align="center">
-<h3>138 个 MCP 工具</h3>
+<h3>139 个 MCP 工具</h3>
 模型 . 作业 . ODB . KPI . 胶囊 . 合约 . 报告 . 视口 . 医生
 </td>
 <td width="33%" align="center">
@@ -117,7 +119,7 @@ ODB 到 VTU 到 Three.js 浏览器可视化。Vite + 认证式 Python HTTP 服�
          | stdio (MCP)
          v
 +------------------+
-|  MCP 服务器      |  server.py -- 138 工具, 13 提示词, 74 资源
+|  MCP 服务器      |  server.py -- 139 工具, 13 提示词, 74 资源
 |  (Python)        |
 +--------+---------+
          | TCP :48152
@@ -159,7 +161,7 @@ ODB 到 VTU 到 Three.js 浏览器可视化。Vite + 认证式 Python HTTP 服�
 
 **2026-10-13 显示改进（VTU）**：默认显示模型外边界与特征边；“网格边”显示外表面单元边界，不包含四边形的三角剖分对角线。实体共享内部面不再参与绘制。云图采用逐像素标量映射，默认 Engineering Spectrum，提供 12 级、24 级及连续色带；关闭电影化色调映射和背景网格。边线随变形、部件隐藏与剖切更新。高阶单元仍采用角点线性化；这些显示改进不改变原有外推/平均方式，也不代表与 Abaqus/CAE 全部后处理功能等价。
 
-**1.1.0rc2（2026-09-30，本地候选版本）**：静力结果默认最后一帧及 Mises，支持 CPRESS/COPEN/CSHEAR/CSLIP、按接触对区分字段、独立实体隐藏和接触输出表面筛选。单位必须由建模者声明，不从 ODB 数值猜测。详见[本轮开发与验收](docs/DELIVERY_2026-09-30.md)。
+**1.1.0rc2（2026-10-28 已验证，本地候选版本）**：静力结果默认最后一帧及 Mises，支持 CPRESS/COPEN/CSHEAR/CSLIP、按接触对区分字段、独立实体隐藏和接触输出表面筛选。单位必须由建模者声明，不从 ODB 数值猜测。详见[当前验收证据与剩余边界](docs/DELIVERY_RC2_2026-10-28.md)。
 
 `submit_job_no_gui(wait=True)` 成功后默认自动导出并返回 `viewer.url`；`submit_job(wait=True)` 在本机 ODB 可访问时同样支持。非阻塞提交确认完成后调用 `open_result_viewer(odb_path, unit_system)`。设置 `view_result=False` 可关闭自动导出。批量参考验证使用 `abaqus-mcp-pro-verify --run --viewer`，求解验收状态和查看器状态分别记录。
 
@@ -248,7 +250,8 @@ AI: "export_result_mesh for my_job.odb"
 
 | 类别 | 工具 | 功能 |
 |------|------|------|
-| **桥接** | ping | 连接健康检查 + 会话状态 |
+| **桥接** | connect_abaqus | CAE 未打开时启动本地 GUI；已打开时要求手动启动桥接 |
+| | ping | 连接健康检查 + 会话状态 |
 | | check_abaqus_connection | 可读状态报告 |
 | **代码** | run_python | 在 Abaqus 内核中执行任意 Python |
 | | execute_script | 兼容性包装（stdout 文本） |
@@ -293,7 +296,7 @@ create_instance, rotate_instance, translate_instance, create_reference_point
 | 要求 | 版本 |
 |------|------|
 | Python | 3.10+ |
-| Abaqus | 2024+ (Python 3.10) |
+| Abaqus | 已验证 2026；其他 2024+ 版本列为后续跨版本验收目标 |
 | AI 客户端 | Codex, Claude Desktop 等 |
 
 ### 安装
@@ -334,7 +337,8 @@ pip install fastapi uvicorn    # 查看器服务器（可选）
 ```bash
 # GUI 模式（主要）-- 启动 Abaqus/CAE，激活插件
 
-# noGUI 模式 -- 批量执行
+# noGUI 模式（仅显式启用）-- 仅当用户明确要求时使用
+# 一般用于 inp 文件已经完整，只需要启动 noGUI 计算的场景
 abaqus cae noGUI=scripts/start_abaqus_mcp_pro_agent.py
 
 # 文件 IPC 备用模式
@@ -477,4 +481,4 @@ abaqus-mcp-pro-project history runs
 abaqus-mcp-pro-project compare runs/<run-id> --output reports/scan
 ```
 
-MCP 工具：`list_project_runs`、`compare_project_runs`。报告包含 JSON、CSV 和独立 HTML；只有相同单位与 KPI 选择条件的数据参与比较，失败项保留展示且不能作为基准。查看器 ODB 面板还提供需要会话认证的导出任务历史与诊断日志。详见 [rc2 开发与验收](docs/DELIVERY_RC2_2026-09-30.md)。
+MCP 工具：`list_project_runs`、`compare_project_runs`。报告包含 JSON、CSV 和独立 HTML；只有相同单位与 KPI 选择条件的数据参与比较，失败项保留展示且不能作为基准。查看器 ODB 面板还提供需要会话认证的导出任务历史与诊断日志。详见 [当前 rc2 开发与验收](docs/DELIVERY_RC2_2026-10-28.md)。

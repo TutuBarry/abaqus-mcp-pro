@@ -12,7 +12,7 @@ export class UIController {
   constructor(viewer, state) {
     this.viewer = viewer;
     this.state = state;
-    this.panels = { file: false, odb: false, display: true, fields: false, measure: false };
+    this.panels = { file: false, odb: false, display: false, fields: false, measure: false };
     this._contourCustomMin = null;
     this._contourCustomMax = null;
     this._animSpeed = 5;
@@ -42,6 +42,7 @@ export class UIController {
     this._bindNavigationSensitivity();
     this._bindClippingPosition();
     this._enhanceColormapPicker();
+    this._syncPanels();
   }
 
   /* ── Load Sample ── */
